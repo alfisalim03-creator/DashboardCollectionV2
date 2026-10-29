@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Pencapaian Collection</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; margin: 0; }
+        .chart-container { position: relative; height: 320px; width: 100%; min-height: 280px; }
+        
+        /* Custom Scrollbar untuk Tabel */
+        .table-scroll::-webkit-scrollbar { width: 4px; height: 6px; }
+        .table-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        
+        /* Hide Scrollbar untuk Tab Switcher Mobile */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        #dashboardWrapper { opacity: 1; transform: translateY(0); transition: opacity 0.35s ease-in-out, transform 0.35s ease-in-out; }
+        #dashboardWrapper.is-animating { opacity: 0; transform: translateY(12px); }
+        @keyframes rowFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-row { animation: rowFadeIn 0.5s ease forwards; opacity: 0; }
+        @media (prefers-reduced-motion: reduce) {
+            #dashboardWrapper { transition: none; }
+            .animate-row { animation: none; opacity: 1; }
+        }
+
+        input[type="date"] { position: relative; cursor: pointer; }
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0; cursor: pointer;
+        }
+    </style>
+</head>
+<body class="p-3 sm:p-6 text-slate-800">
+
+    <!-- LOADING OVERLAY UTAMA -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-start pt-16 sm:pt-20 transition-opacity duration-300">
+        <div class="bg-white px-6 py-4 rounded-2xl shadow-xl flex items-center gap-4 border border-slate-100">
+            <div class="w-6 h-6 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+            <div>
+                <h4 id="loadingTitle" class="text-sm font-bold text-slate-800">Memuat Dashboard</h4>
+                <p id="loadingText" class="text-[11px] text-slate-400">Sinkronisasi data dari server...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- WRAPPER DIUBAH MENJADI W-FULL UNTUK LEBAR PENUH DI GOOGLE SITES -->
+    <div id="dashboardWrapper" class="w-full mx-auto space-y-4 sm:space-y-6 px-2 sm:px-6">
+
+        <!-- HEADER & BADGE WAKTU UPDATE -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-slate-200 pb-4">
+            <div>
+                <h1 class="text-2xl sm:text-3xl font-bold text-slate-800">Dashboard Pencapaian Collection</h1>
+                <p class="text-sm text-slate-500 mt-1">Monitoring Pencapaian, Efektifitas, dan Progres Tagihan Nasional.</p>
+                
+                <!-- Last Updated Badge -->
+                <div class="mt-3">
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold shadow-sm transition-all">
+                        <span id="liveIndicatorTop" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_6px_#10b981]"></span>
+                        Terakhir Update: <span id="lastUpdatedText">Memuat...</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB SWITCHER MAIN -->
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-3 w-full">
+            <div class="flex overflow-x-auto pb-2 sm:pb-0 gap-2 sm:gap-3 w-full sm:w-auto hide-scrollbar">
+                <button onclick="switchTab('sla3')" id="btnSla3" class="flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-indigo-600 text-white text-center">
+                    Pencapaian Collection
+                </button>
+                <!-- SLA 4 DISEMBUNYIKAN (hidden) -->
+                <button onclick="switchTab('sla4')" id="btnSla4" class="hidden flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 text-center">
+                    SLA 4: Recurring
+                </button>
+                <button onclick="switchTab('progres')" id="btnProgres" class="flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-white text-slate-600 border border-slate-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-center flex items-center justify-center gap-2">
+                    Progres Tagihan
+                </button>
+            </div>
+
+            <button onclick="forceRefreshData()" class="w-full sm:w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50 text-center flex items-center justify-center gap-2">
+                Sinkronkan Data
+            </button>
+        </div>
+
+        <!-- WADAH 1: SLA 3 -->
+        <div id="slaContainer" class="space-y-4 sm:space-y-6">
+            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-700">Filter Pencapaian</h3>
+                        <p class="text-[11px] text-slate-400">Pilih periode, region, & rentang tgl spesifik</p>
+                    </div>
+                    <button onclick="resetFilter()" class="px-3 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 text-xs font-semibold rounded-xl hover:bg-rose-100 transition-colors shadow-sm flex items-center gap-1.5">
+                        Reset Filter
+                    </button>
+                </div>
+                <div class="flex flex-wrap items-center gap-2.5 pt-2 border-t border-slate-100">
+                    <select id="filterPeriodeSla" onchange="onPeriodChangeSla()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 bg-slate-50 font-semibold text-slate-700">
+                        <option value="ALL">Semua Periode</option>
+                    </select>
+                    <select id="filterRegion" onchange="applyFilter()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 bg-slate-50 font-semibold text-slate-700">
+                        <option value="ALL">Semua Region</option>
+                    </select>
+                    <div class="flex items-center gap-2 bg-white border border-slate-200 px-3.5 py-1.5 rounded-xl shadow-sm focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 transition-all">
+                        <span class="text-xs font-semibold text-slate-500 whitespace-nowrap">📅 Rentang:</span>
+                        <!-- PERBAIKAN LEBAR INPUT TANGGAL -->
+                        <input type="date" id="startDate" onclick="try{this.showPicker();}catch(e){}" onchange="applyFilter()" class="text-sm bg-transparent border-none focus:outline-none focus:ring-0 text-slate-700 cursor-pointer font-medium w-[110px] sm:w-[120px]">
+                        <span class="text-slate-300">|</span>
+                        <input type="date" id="endDate" onclick="try{this.showPicker();}catch(e){}" onchange="applyFilter()" class="text-sm bg-transparent border-none focus:outline-none focus:ring-0 text-slate-700 cursor-pointer font-medium w-[110px] sm:w-[120px]">
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-emerald-500 border border-slate-100 flex flex-col justify-center">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Total Keseluruhan Revenue</p>
+                    <h3 id="totalRupiah" class="text-2xl sm:text-3xl font-bold text-emerald-600">Rp 0</h3>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-indigo-600 border border-slate-100 flex flex-col justify-center">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Total Keseluruhan Pelanggan</p>
+                    <h3 id="totalTiket" class="text-2xl sm:text-3xl font-bold text-indigo-600">0</h3>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-sky-500 border border-slate-100 flex flex-col justify-center">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Telecollection</p>
+                    <h3 id="teleRev" class="text-xl sm:text-2xl font-bold text-slate-700 mb-1">Rp 0</h3>
+                    <p id="telePlg" class="text-xs sm:text-sm font-medium text-sky-500">0 Pelanggan</p>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-indigo-500 border border-slate-100 flex flex-col justify-center">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Retention</p>
+                    <h3 id="retRev" class="text-xl sm:text-2xl font-bold text-slate-700 mb-1">Rp 0</h3>
+                    <p id="retPlg" class="text-xs sm:text-sm font-medium text-indigo-500">0 Pelanggan</p>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-emerald-500 border border-slate-100 flex flex-col justify-center">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Winback</p>
+                    <h3 id="winRev" class="text-xl sm:text-2xl font-bold text-slate-700 mb-1">Rp 0</h3>
+                    <p id="winPlg" class="text-xs sm:text-sm font-medium text-emerald-500">0 Pelanggan</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <h3 id="trenChartTitle" class="text-sm font-semibold text-slate-700 mb-4">📈 Tren Pencapaian Bulanan</h3>
+                <div class="chart-container"><canvas id="trenChart"></canvas></div>
+            </div>
+
+            <div class="flex flex-col gap-4 sm:gap-6 pb-8">
+                <!-- KARTU ATAS: Top Kinerja Region -->
+                <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
+                    <h3 id="regionChartTitle" class="text-sm font-semibold text-slate-700 mb-4">🏆 Top Kinerja Region</h3>
+                    <div class="overflow-y-auto table-scroll" style="max-height: 420px;">
+                        <div id="regionChartHost" style="position: relative; min-width: 450px;"><canvas id="regionChart"></canvas></div>
+                    </div>
+                </div>
+                
+                <!-- KARTU BAWAH: Leaderboard Agen (KOMPREHENSIF) -->
+                <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
+                    <h3 id="leaderboardTitle" class="text-sm font-semibold text-slate-700 mb-4">Leaderboard Agen & Efektifitas</h3>
+                    <div class="overflow-y-auto table-scroll" style="max-height: 550px;">
+                        <table class="w-full text-left border-collapse table-fixed min-w-[600px]">
+                            <thead>
+                                <tr id="leaderboardHeadRow" class="bg-slate-50 sticky top-0 z-10 border-b border-slate-100">
+                                    <th class="py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase w-3/12">Agen & Region</th>
+                                    <th onclick="sortLeaderboard('outbound')" class="cursor-pointer hover:bg-slate-200 transition-colors py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-center w-2/12 border-l border-slate-200 select-none" title="Klik untuk urutkan">Outbound <span class="text-slate-400 font-bold ml-1 text-[11px]">↕</span></th>
+                                    <th onclick="sortLeaderboard('rp')" class="cursor-pointer hover:bg-slate-200 transition-colors py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-center w-3/12 border-l border-slate-200 select-none" title="Klik untuk urutkan">Rp & Pelanggan <span class="text-slate-400 font-bold ml-1 text-[11px]">↕</span></th>
+                                    <th onclick="sortLeaderboard('capaian')" class="cursor-pointer hover:bg-slate-200 transition-colors py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-center w-2/12 border-l border-slate-200 select-none" title="Klik untuk urutkan">Capaian <span class="text-slate-400 font-bold ml-1 text-[11px]">↕</span></th>
+                                    <th onclick="sortLeaderboard('efektifitas')" class="cursor-pointer hover:bg-slate-200 transition-colors py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-center w-2/12 border-l border-slate-200 select-none" title="Klik untuk urutkan">Efektifitas <span class="text-indigo-600 font-black ml-1 text-[12px]">↓</span></th>
+                                </tr>
+                            </thead>
+                            <tbody id="leaderboardBody" class="divide-y divide-slate-100 text-sm">
+                                <tr><td colspan="5" class="p-4 text-center text-slate-400">Memuat data...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- WADAH 2: PROGRES TAGIHAN -->
+        <div id="progresContainer" class="hidden space-y-4 sm:space-y-6 pb-8">
+            <div class="flex flex-col items-center justify-center">
+                <div class="bg-slate-100 p-1.5 rounded-xl inline-flex w-full sm:w-auto overflow-x-auto text-sm font-semibold shadow-inner border border-slate-200 hide-scrollbar">
+                    <button onclick="setBillingType('prepaid')" id="btnPrepaid" class="px-5 py-2.5 rounded-lg bg-white shadow-sm text-rose-600 transition-all flex-shrink-0 sm:flex-none text-center whitespace-nowrap">Prabayar</button>
+                    <button onclick="setBillingType('postpaid')" id="btnPostpaid" class="px-5 py-2.5 rounded-lg text-slate-500 hover:text-slate-700 transition-all flex-shrink-0 sm:flex-none text-center whitespace-nowrap">Pascabayar</button>
+                    <button onclick="setBillingType('all')" id="btnAllType" class="px-5 py-2.5 rounded-lg text-slate-500 hover:text-slate-700 transition-all flex-shrink-0 sm:flex-none text-center whitespace-nowrap">Semua Tagihan</button>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4 mt-2">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-700">Filter Pencapaian</h3>
+                        <p class="text-[11px] text-slate-400">Pilih periode, region, & rentang tgl spesifik</p>
+                    </div>
+                    <button onclick="resetProgresFilter()" class="px-3 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 text-xs font-semibold rounded-xl hover:bg-rose-100 transition-colors shadow-sm flex items-center gap-1.5">
+                        🔄 Reset Filter
+                    </button>
+                </div>
+                <div class="flex flex-wrap items-center gap-2.5 pt-2 border-t border-slate-100">
+                    <select id="filterPeriode" onchange="applyProgresFilter()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-rose-500 bg-slate-50 font-semibold text-slate-700">
+                        <option value="ALL">Semua Periode</option>
+                    </select>
+                    <select id="progFilterRegion" onchange="applyProgresFilter()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-rose-500 bg-slate-50 font-semibold text-slate-700">
+                        <option value="ALL">Semua Region</option>
+                    </select>
+                    <div class="flex items-center gap-2 bg-white border border-slate-200 px-3.5 py-1.5 rounded-xl shadow-sm focus-within:border-rose-500 focus-within:ring-1 focus-within:ring-rose-500 transition-all">
+                        <span class="text-xs font-semibold text-slate-500 whitespace-nowrap">📅 Tgl Lunas:</span>
+                        <!-- PERBAIKAN LEBAR INPUT TANGGAL -->
+                        <input type="date" id="progStartDate" onclick="try{this.showPicker();}catch(e){}" onchange="applyProgresFilter()" class="text-sm bg-transparent border-none focus:outline-none focus:ring-0 text-slate-700 cursor-pointer font-medium w-[110px] sm:w-[120px]">
+                        <span class="text-slate-300">|</span>
+                        <input type="date" id="progEndDate" onclick="try{this.showPicker();}catch(e){}" onchange="applyProgresFilter()" class="text-sm bg-transparent border-none focus:outline-none focus:ring-0 text-slate-700 cursor-pointer font-medium w-[110px] sm:w-[120px]">
+                    </div>
+                </div>
+            </div>
+
+            <!-- LAYOUT 3 KARTU KPI -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-stretch">
+                <!-- Kartu Biru -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-blue-500 border-t border-r border-b border-slate-100 flex flex-col justify-center h-full">
+                    <p id="titleTarget" class="text-xs font-semibold uppercase text-slate-400 mb-1">Target Tagihan (Tgl 25)</p>
+                    <h3 id="progTargetRp" class="text-2xl sm:text-3xl font-bold text-slate-700 mb-1">Rp 0</h3>
+                    <p id="progTargetPlg" class="text-xs sm:text-sm font-medium text-blue-500">0 Pelanggan Ditagih</p>
+                </div>
+                <!-- Kartu Hijau -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-emerald-500 border-t border-r border-b border-slate-100 flex flex-col justify-center h-full">
+                    <p class="text-xs font-semibold uppercase text-slate-400 mb-1">Sudah Dibayar (Lunas)</p>
+                    <h3 id="progLunasRp" class="text-2xl sm:text-3xl font-bold text-emerald-600 mb-1">Rp 0</h3>
+                    <p id="progLunasPlg" class="text-xs sm:text-sm font-medium text-emerald-500">0 Pelanggan Lunas</p>
+                </div>
+                <!-- Kartu Merah -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-rose-500 border-t border-r border-b border-slate-100 flex flex-col justify-between h-full gap-4">
+                    <div>
+                        <p class="text-xs font-semibold uppercase text-rose-400 mb-1">Sisa Tagihan (Tunggakan)</p>
+                        <h3 id="progSisaRp" class="text-2xl sm:text-3xl font-bold text-rose-600 mb-1">Rp 0</h3>
+                        <p id="progSisaPlg" class="text-xs sm:text-sm font-medium text-rose-500">0 Pelanggan Tertunggak</p>
+
+                        <!-- RINCIAN SISA TAGIHAN -->
+                        <div class="mt-4 pt-3 border-t border-dashed border-slate-200 space-y-1.5">
+                            <div class="flex justify-between items-center">
+                                <span class="text-[11px] font-medium text-slate-500 flex items-center gap-1.5"><span class="text-amber-500">⚠️</span> Tunggakan Aktif:</span>
+                                <span id="detAktif" class="text-xs font-bold text-rose-600">0 Plg</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-[11px] font-medium text-slate-500 flex items-center gap-1.5"><span class="text-rose-400">❌</span> Batal (Cancel Billing):</span>
+                                <span id="detBatal" class="text-[11px] font-bold text-slate-600">0 Plg</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-[11px] font-medium text-slate-500 flex items-center gap-1.5"><span class="text-rose-400">🛑</span> Batal Deaktivasi:</span>
+                                <span id="detDeaktif" class="text-[11px] font-bold text-slate-600">0 Plg</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-[11px] font-medium text-slate-500 flex items-center gap-1.5"><span class="text-slate-400">⚪</span> Batal Lainnya:</span>
+                                <span id="detLain" class="text-[11px] font-bold text-slate-400">0 Plg</span>
+                            </div>
+                            <div id="rowLuar" class="hidden">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-[11px] font-medium text-slate-500 flex items-center gap-1.5"><span class="text-emerald-400">🕒</span> Lunas di Luar Filter Tgl:</span>
+                                    <span id="detLuar" class="text-[11px] font-bold text-slate-600">0 Plg</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PROGRESS BAR DENGAN BADGE MoM -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-center space-y-3">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-700">Pencapaian <span id="labelCapaianTeks">Nasional</span></h3>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span id="momBadge" class="hidden px-2.5 py-1 rounded-lg text-xs font-bold items-center gap-1"></span>
+                        <span id="progBarText" class="text-2xl font-black text-rose-600">0%</span>
+                    </div>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-5 overflow-hidden border border-slate-200">
+                    <div id="progBarFill" class="bg-rose-500 h-5 rounded-full transition-all duration-1000 ease-out" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- SUMMARY CARD MoM -->
+            <div id="momSummaryCard" class="hidden bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-5 rounded-2xl shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="flex items-center gap-3 w-full sm:w-auto">
+                    <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-lg flex-shrink-0">📊</div>
+                    <div>
+                        <h4 class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Perbandingan Bulan Lalu</h4>
+                        <p id="momSubTitle" class="text-[11px] sm:text-sm font-bold text-slate-200 leading-tight mt-0.5">-</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4 w-full sm:w-auto text-left sm:text-right">
+                    <div class="bg-white/5 p-3 rounded-xl border border-white/10">
+                        <span class="block text-[11px] text-slate-400 uppercase font-semibold">Pelanggan Lunas</span>
+                        <span id="momPlgVal" class="text-sm sm:text-base font-bold text-white">-</span>
+                        <span id="momPlgBadge" class="block text-[11px] font-semibold mt-0.5">-</span>
+                    </div>
+                    <div class="bg-white/5 p-3 rounded-xl border border-white/10">
+                        <span class="block text-[11px] text-slate-400 uppercase font-semibold">Total Revenue</span>
+                        <span id="momRpVal" class="text-sm sm:text-base font-bold text-white">-</span>
+                        <span id="momRpBadge" class="block text-[11px] font-semibold mt-0.5">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <h3 id="trenTitle" class="text-sm font-semibold text-slate-700 mb-4">📈 Tren Jumlah Pelanggan Lunas Harian</h3>
+                <div class="chart-container"><canvas id="progresTrenChart"></canvas></div>
+            </div>
+
+            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <h3 class="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">🏆 Leaderboard Region Tertinggi</h3>
+                <div>
+                    <table class="w-full text-left border-collapse table-fixed">
+                        <thead>
+                            <tr class="bg-slate-50 border-b border-slate-100">
+                                <th class="py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase w-5/12">Region</th>
+                                <th class="py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-center w-4/12">Status Pelanggan</th>
+                                <th class="py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-right w-3/12">Capaian</th>
+                            </tr>
+                        </thead>
+                        <tbody id="progresBody" class="divide-y divide-slate-100 text-sm">
+                            <tr><td colspan="3" class="p-4 text-center text-slate-400">Memuat data...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxohEYzE3Th9LRITFZHlK4IAmsXN-byA88nTytdF2PQj2z8A82bicIJUOZliE1IDjo2WA/exec";
+        
+        // Menipiskan garis bantu grafik agar terlihat lebih bersih (Clean UI)
+        Chart.defaults.scale.grid.color = '#f1f5f9'; 
+        Chart.defaults.font.family = "'Inter', sans-serif"; // Menyamakan font grafik dengan web
+        
+        let allData = { sla3: [], sla4: [], progres: [] };
+        let rawData = [];
+        let currentTab = 'sla3';
+        let currentBillingType = 'prepaid';
+        let trenChartInst = null, regionChartInst = null, progresTrenChartInst = null;
+        
+        let lbSortCol = 'default';
+        let lbSortAsc = false;
+        let lastFilteredData = [];
+
+        const bulanMap = { 'Januari': 1, 'Februari': 2, 'Maret': 3, 'April': 4, 'Mei': 5, 'Juni': 6, 'Juli': 7, 'Agustus': 8, 'September': 9, 'Oktober': 10, 'November': 11, 'Desember': 12 };
+        const bulanNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+        const FU_GROUPS = [
+            { kw: 'tele',   rev: 'teleRev', plg: 'telePlg' },
+            { kw: 'reten', rev: 'retRev',  plg: 'retPlg'  },
+            { kw: 'win',   rev: 'winRev',  plg: 'winPlg'  }
+        ];
+
+        /* ==========================================================
+           HELPER UMUM
+        ========================================================== */
+        function escapeHtml(v) {
+            return String(v == null ? '' : v)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        function parseYMD(str) {
+            const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(str || ''));
+            if (!m) return null;
+            return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+        }
+
+        function toYMD(d) {
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+
+        function getPeriodFromDate(dateStr) {
+            const d = parseYMD(dateStr);
+            return d ? `${bulanNames[d.getMonth()]} ${d.getFullYear()}` : "";
+        }
+
+        function parsePeriodeToDate(periodeStr) {
+            if (!periodeStr) return new Date(0);
+            const parts = String(periodeStr).split(' ');
+            if (parts.length === 2) {
+                const bulan = bulanMap[parts[0]] || 1;
+                const tahun = parseInt(parts[1]) || new Date().getFullYear();
+                return new Date(tahun, bulan - 1, 1);
+            }
+            return new Date(0);
+        }
+
+        const formatRupiah = (angka) => {
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(angka || 0);
+        };
+
+        const formatCompact = (v) => new Intl.NumberFormat('id-ID', { notation: 'compact', maximumFractionDigits: 1 }).format(v || 0);
+
+        const animateCounter = (id, endValue, isCurrency, customTextAfter = "") => {
+            const obj = document.getElementById(id);
+            if (!obj) return;
+            endValue = Math.round(Number(endValue) || 0);
+            const token = (obj._animToken = (obj._animToken || 0) + 1);
+            const suffix = customTextAfter ? " " + customTextAfter : "";
+            const fmt = (n) => (isCurrency ? formatRupiah(n) : n.toLocaleString('id-ID')) + suffix;
+            let startTimestamp = null;
+            const duration = 1200;
+            const step = (timestamp) => {
+                if (obj._animToken !== token) return;
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                const easeProgress = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+                obj.innerText = fmt(progress === 1 ? endValue : Math.floor(easeProgress * endValue));
+                if (progress < 1) window.requestAnimationFrame(step);
+            };
+            window.requestAnimationFrame(step);
+        };
+
+        const fixTimezone = (value) => {
+            if (!value) return "";
+            const s = String(value);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+            const d = new Date(s);
+            if (isNaN(d)) return s;
+            return toYMD(d);
+        };
+
+        function shiftMonthBack(dateStr) {
+            if (!dateStr) return "";
+            const parts = dateStr.split('-');
+            if (parts.length !== 3) return "";
+            let year = parseInt(parts[0]);
+            let month = parseInt(parts[1]);
+            let day = parseInt(parts[2]);
+            month -= 1;
+            if (month === 0) { month = 12; year -= 1; }
+            const daysInNewMonth = new Date(year, month, 0).getDate();
+            if (day > daysInNewMonth) day = daysInNewMonth;
+            return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
+
+        function parseMatrixToObjects(matrix) {
+            if (!matrix || matrix.length < 2) return [];
+            const headers = matrix[0].map(h => String(h).trim());
+            const result = [];
+            for (let i = 1; i < matrix.length; i++) {
+                const rowObj = {};
+                for (let j = 0; j < headers.length; j++) rowObj[headers[j]] = matrix[i][j];
+                result.push(rowObj);
+            }
+            return result;
+        }
+
+        /* ==========================================================
+           AMBIL DATA DARI SERVER & WAKTU UPDATE
+        ========================================================== */
+        function showLoading(title, text) {
+            const overlay = document.getElementById('loadingOverlay');
+            document.getElementById('loadingTitle').innerText = title;
+            document.getElementById('loadingText').innerText = text;
+            if (overlay) overlay.classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            const overlay = document.getElementById('loadingOverlay');
+            if (overlay) {
+                overlay.style.opacity = '0'; // Membuatnya memudar
+                setTimeout(() => {
+                    overlay.classList.add('hidden');
+                    overlay.style.opacity = '1'; // Reset untuk loading berikutnya
+                }, 300); // Menunggu animasi pudar 0.3 detik selesai
+            }
+        }
+
+        function updateDisplayWaktuSync() {
+            let actualUpdateTime = "Belum ada data";
+            if (currentTab === 'progres' && allData.progres.length > 0 && allData.progres[0].Waktu_Update) {
+                actualUpdateTime = allData.progres[0].Waktu_Update + ' WIB';
+            } else if ((currentTab === 'sla3' || currentTab === 'sla4') && allData.sla3.length > 0 && allData.sla3[0].Waktu_Update) {
+                actualUpdateTime = allData.sla3[0].Waktu_Update + ' WIB';
+            }
+            document.getElementById('lastUpdatedText').innerText = actualUpdateTime;
+        }
+
+        async function fetchData(forceRefresh) {
+            const url = WEB_APP_URL + "?" + (forceRefresh ? "refresh=true&" : "") + "nocache=" + Date.now();
+            const response = await fetch(url);
+            if (!response.ok) throw new Error("HTTP " + response.status);
+            const res = await response.json();
+            if (res.error) throw new Error(res.error);
+
+            allData.sla3 = parseMatrixToObjects(res.sla3).map(row => { row['Tanggal'] = fixTimezone(row['Tanggal']); return row; });
+            allData.sla4 = parseMatrixToObjects(res.sla4).map(row => { row['Tanggal'] = fixTimezone(row['Tanggal']); return row; });
+            allData.progres = parseMatrixToObjects(res.progres).map(row => { row['Tanggal_Bayar_Saja'] = fixTimezone(row['Tanggal_Bayar_Saja']); return row; });
+
+            updateDisplayWaktuSync();
+        }
+
+        async function loadAllData() {
+            showLoading("Memuat Dashboard", "Sinkronisasi data dari server...");
+            try {
+                await fetchData(false);
+                switchTab('sla3');
+            } catch (error) {
+                console.error("Gagal memuat data:", error);
+                alert("Gagal memuat data dari server: " + error.message);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function forceRefreshData() {
+            showLoading("Menyinkronkan Data", "Mengambil data terbaru...");
+            try {
+                await fetchData(true);
+                switchTab(currentTab);
+            } catch (error) {
+                console.error("Gagal refresh data:", error);
+                alert("Gagal menyinkronkan data: " + error.message);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function triggerActionAnimation(actionCallback) {
+            const wrapper = document.getElementById('dashboardWrapper');
+            wrapper.classList.add('is-animating');
+            setTimeout(() => {
+                actionCallback();
+                setTimeout(() => { wrapper.classList.remove('is-animating'); }, 50);
+            }, 350);
+        }
+
+        /* ==========================================================
+           TAB UTAMA
+        ========================================================== */
+        function switchTab(tab) {
+            triggerActionAnimation(() => {
+                currentTab = tab;
+                const btn3 = document.getElementById('btnSla3'), btnP = document.getElementById('btnProgres');
+                const slaBox = document.getElementById('slaContainer'), progBox = document.getElementById('progresContainer');
+
+                const activeSla = "flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-indigo-600 text-white text-center";
+                const inactiveSla = "flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 text-center";
+                const activeProg = "flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-rose-500 text-white text-center flex items-center justify-center gap-2";
+                const inactiveProg = "flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-white text-slate-600 border border-slate-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-center flex items-center justify-center gap-2";
+
+                btn3.className = inactiveSla; btnP.className = inactiveProg;
+
+                if (tab === 'sla3' || tab === 'sla4') {
+                    slaBox.classList.remove('hidden'); progBox.classList.add('hidden');
+                    if (tab === 'sla3') { btn3.className = activeSla; rawData = allData.sla3; }
+
+                    const periodSelect = document.getElementById('filterPeriodeSla');
+                    periodSelect.innerHTML = '<option value="ALL">Semua Periode</option>';
+                    const periods = [...new Set(rawData.map(row => getPeriodFromDate(row['Tanggal'])).filter(Boolean))];
+                    periods.sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
+                    periods.forEach(p => { const opt = document.createElement('option'); opt.value = p; opt.innerText = p; periodSelect.appendChild(opt); });
+                    periodSelect.value = 'ALL';
+
+                    const regions = [...new Set(rawData.map(row => row.Region).filter(Boolean))].sort();
+                    const regionSelect = document.getElementById('filterRegion');
+                    regionSelect.innerHTML = '<option value="ALL">Semua Region</option>';
+                    regions.forEach(reg => { const opt = document.createElement('option'); opt.value = reg; opt.innerText = reg; regionSelect.appendChild(opt); });
+                    regionSelect.value = 'ALL';
+
+                    setDefaultSlaDates();
+                    applyFilterWithoutAnimation();
+                } else if (tab === 'progres') {
+                    btnP.className = activeProg; slaBox.classList.add('hidden'); progBox.classList.remove('hidden');
+                    initProgresTab();
+                }
+
+                updateDisplayWaktuSync();
+            });
+        }
+
+        /* ==========================================================
+           TAB SLA 3 & SLA 4
+        ========================================================== */
+        function setDefaultSlaDates() {
+            const dates = [...new Set(rawData.map(row => row['Tanggal']).filter(Boolean))].sort();
+            document.getElementById('startDate').value = dates.length ? dates[0] : '';
+            document.getElementById('endDate').value = dates.length ? dates[dates.length - 1] : '';
+        }
+
+        function onPeriodChangeSla() {
+            const selectedPeriod = document.getElementById('filterPeriodeSla').value;
+            if (selectedPeriod === 'ALL') { resetFilter(); return; }
+            const parts = selectedPeriod.split(' ');
+            if (parts.length !== 2) return;
+            const bulanIdx = bulanMap[parts[0]] - 1;
+            const tahun = parseInt(parts[1]);
+            if (isNaN(bulanIdx) || isNaN(tahun)) return;
+
+            const startStr = toYMD(new Date(tahun, bulanIdx, 1));
+            const datesInMonth = rawData.map(r => r['Tanggal']).filter(d => {
+                const dt = parseYMD(d);
+                return dt && dt.getFullYear() === tahun && dt.getMonth() === bulanIdx;
+            }).sort();
+            const endStr = datesInMonth.length ? datesInMonth[datesInMonth.length - 1] : toYMD(new Date(tahun, bulanIdx + 1, 0));
+
+            document.getElementById('startDate').value = startStr;
+            document.getElementById('endDate').value = endStr;
+            applyFilterWithoutAnimation();
+        }
+
+        function applyFilter() {
+            triggerActionAnimation(() => { applyFilterWithoutAnimation(); });
+        }
+
+        function applyFilterWithoutAnimation() {
+            const selectedRegion = document.getElementById('filterRegion').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            const dateFiltered = rawData.filter(row =>
+                (!startDate || row['Tanggal'] >= startDate) &&
+                (!endDate || row['Tanggal'] <= endDate));
+
+            const filtered = selectedRegion === 'ALL'
+                ? dateFiltered
+                : dateFiltered.filter(r => String(r.Region || '').toUpperCase() === String(selectedRegion).toUpperCase());
+
+            renderSlaKpi(filtered);
+            renderTrenChart(filtered);
+            
+            // Perbaikan Logika: Kirim 'filtered' agar hanya merender sesuai filter region (Drill-down ke KP)
+            renderRegionChart(filtered, selectedRegion);
+            
+            // SIMPAN DATA TERAKHIR UNTUK FITUR KLIK SORTING TABEL
+            lastFilteredData = filtered; 
+            renderLeaderboard(filtered);
+        }
+
+        function resetFilter() {
+            document.getElementById('filterRegion').value = 'ALL';
+            document.getElementById('filterPeriodeSla').value = 'ALL';
+            setDefaultSlaDates();
+            applyFilterWithoutAnimation();
+        }
+
+        function sumField(rows, key) {
+            return rows.reduce((acc, r) => acc + Number(r[key] || 0), 0);
+        }
+
+        function renderSlaKpi(rows) {
+            animateCounter('totalRupiah', sumField(rows, 'Rupiah'), true);
+            animateCounter('totalTiket', sumField(rows, 'Pelanggan'), false);
+
+            FU_GROUPS.forEach(g => {
+                const sub = rows.filter(r => String(r['Type FU'] || '').toLowerCase().includes(g.kw));
+                animateCounter(g.rev, sumField(sub, 'Rupiah'), true);
+                animateCounter(g.plg, sumField(sub, 'Pelanggan'), false, 'Pelanggan');
+            });
+        }
+
+        function renderTrenChart(rows) {
+            if (trenChartInst) { trenChartInst.destroy(); trenChartInst = null; }
+
+            const periods = [...new Set(rows.map(r => getPeriodFromDate(r['Tanggal'])).filter(Boolean))];
+            const daily = periods.length <= 1;
+            const map = {};
+            rows.forEach(r => {
+                const key = daily ? r['Tanggal'] : getPeriodFromDate(r['Tanggal']);
+                if (!key) return;
+                map[key] = (map[key] || 0) + Number(r['Rupiah'] || 0);
+            });
+
+            let keys, labels;
+            if (daily) {
+                keys = Object.keys(map).sort();
+                labels = keys.map(k => { const d = parseYMD(k); return d ? d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) : k; });
+                document.getElementById('trenChartTitle').innerText = periods.length === 1 ? `📈 Tren Pencapaian Harian - ${periods[0]}` : "📈 Tren Pencapaian Harian";
+            } else {
+                keys = Object.keys(map).sort((a, b) => parsePeriodeToDate(a) - parsePeriodeToDate(b));
+                labels = keys;
+                document.getElementById('trenChartTitle').innerText = "📈 Tren Pencapaian Bulanan";
+            }
+
+            trenChartInst = new Chart(document.getElementById('trenChart'), {
+                type: 'line',
+                data: { labels, datasets: [{ data: keys.map(k => map[k]), borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,0.1)', borderWidth: 2, fill: true, tension: 0.3 }] },
+                options: {
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false }, // TOOLTIP UX IMPROVEMENT
+                    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => ' ' + formatRupiah(ctx.parsed.y) } } },
+                    scales: { y: { beginAtZero: true, ticks: { callback: (v) => formatCompact(v) } }, x: { ticks: { maxRotation: 45, minRotation: 45 } } }
+                }
+            });
+        }
+
+        function renderRegionChart(rows, selectedRegion) {
+            if (regionChartInst) { regionChartInst.destroy(); regionChartInst = null; }
+
+            // Cek apakah filter sedang memilih "ALL" (Semua Region) atau nama Region tertentu
+            const isAllRegion = (String(selectedRegion || 'ALL').toUpperCase() === 'ALL');
+            const map = {};
+
+            rows.forEach(r => {
+                // ==========================================
+                // FITUR DRILL-DOWN AKTIF:
+                // Jika "ALL", kelompokkan berdasarkan Region. 
+                // Jika pilih Region spesifik, kelompokkan berdasarkan KP.
+                // ==========================================
+                const groupKey = isAllRegion 
+                    ? (r['Region'] || '-') 
+                    : (r['KP'] || '-');
+                    
+                map[groupKey] = (map[groupKey] || 0) + Number(r['Rupiah'] || 0);
+            });
+
+            const sorted = Object.entries(map).sort((a, b) => b[1] - a[1]);
+
+            // Tinggi chart menyesuaikan jumlah data secara otomatis
+            document.getElementById('regionChartHost').style.height = Math.max(320, sorted.length * 30) + 'px';
+
+            // Ubah judul kartu secara dinamis
+            const titleEl = document.getElementById('regionChartTitle');
+            if (titleEl) {
+                titleEl.innerText = isAllRegion ? "🏆 Top Kinerja Region" : `🏆 Top Kinerja KP - Region ${selectedRegion}`;
+            }
+
+            // Ubah warna bar grafik: Ungu untuk Region, Hijau untuk KP
+            const colors = sorted.map(() => isAllRegion ? '#6366f1' : '#10b981');
+
+            regionChartInst = new Chart(document.getElementById('regionChart'), {
+                type: 'bar',
+                data: { 
+                    labels: sorted.map(e => e[0]), 
+                    datasets: [{ data: sorted.map(e => e[1]), backgroundColor: colors, borderRadius: 4 }] 
+                },
+                options: {
+                    indexAxis: 'y',
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'y', // Memastikan tooltip tidak meleset saat baris disentuh
+                        intersect: false
+                    },
+                    plugins: { 
+                        legend: { display: false }, 
+                        tooltip: { callbacks: { label: (ctx) => ' ' + formatRupiah(ctx.parsed.x) } } 
+                    },
+                    scales: { 
+                        x: { beginAtZero: true, ticks: { callback: (v) => formatCompact(v) } }, 
+                        y: { ticks: { autoSkip: false } } 
+                    }
+                }
+            });
+        }
+        
+        // FUNGSI SORTING LEADERBOARD
+        function sortLeaderboard(col) {
+            if (lbSortCol === col) {
+                lbSortAsc = !lbSortAsc; 
+            } else {
+                lbSortCol = col;
+                lbSortAsc = false;
+            }
+            renderLeaderboard(lastFilteredData);
+        }
+
+        // FUNGSI RENDER LEADERBOARD
+        function renderLeaderboard(dataRows) {
+            const tbody = document.getElementById('leaderboardBody');
+            const theadRow = document.getElementById('leaderboardHeadRow');
+            if (!tbody) return;
+
+            const uniquePeriods = new Set(dataRows.map(row => getPeriodFromDate(row['Tanggal'])).filter(Boolean));
+            const monthMultiplier = uniquePeriods.size > 0 ? uniquePeriods.size : 1;
+            const isModeEfektifitas = dataRows.some(row => Number(row['Outbound'] || row['Jumlah_Outbound'] || 0) > 0);
+
+            let activeSort = lbSortCol;
+            if (activeSort === 'default') {
+                activeSort = isModeEfektifitas ? 'efektifitas' : 'capaian'; 
+            }
+
+            const stats = {};
+            dataRows.forEach(row => {
+                const agent = row['Nama Agen'] || 'Tidak Diketahui';
+                const period = getPeriodFromDate(row['Tanggal']);
+                
+                if (!stats[agent]) {
+                    stats[agent] = { regions: new Set(), plg: 0, rp: 0, monthlyOutbound: {} };
+                }
+                if (row['Region']) stats[agent].regions.add(row['Region']);
+                
+                stats[agent].plg += Number(row['Pelanggan'] || 0);
+                stats[agent].rp += Number(row['Rupiah'] || 0);
+                
+                const outboundVal = Number(row['Outbound'] || row['Jumlah_Outbound'] || 0);
+                if (period && outboundVal > 0) {
+                    stats[agent].monthlyOutbound[period] = outboundVal;
+                }
+            });
+
+            const board = Object.entries(stats)
+                .map(([agent, s]) => {
+                    let totalOutbound = 0;
+                    Object.values(s.monthlyOutbound).forEach(val => totalOutbound += val);
+                    return { agent, regions: [...s.regions].join(', ') || '-', plg: s.plg, rp: s.rp, outbound: totalOutbound };
+                })
+                .sort((a, b) => {
+                    let valA = 0, valB = 0;
+                    if (activeSort === 'outbound') {
+                        valA = a.outbound; valB = b.outbound;
+                    } else if (activeSort === 'rp' || activeSort === 'capaian') {
+                        valA = a.rp; valB = b.rp;
+                    } else if (activeSort === 'efektifitas') {
+                        valA = a.outbound > 0 ? (a.plg / a.outbound) : -1;
+                        valB = b.outbound > 0 ? (b.plg / b.outbound) : -1;
+                    }
+                    return lbSortAsc ? valA - valB : valB - valA;
+                });
+
+            const baseTargetRp = currentTab === 'sla3' ? 230000000 : 227000000;
+            const actualTargetRp = baseTargetRp * monthMultiplier;
+            
+            const getSortIcon = (colName) => {
+                if (activeSort !== colName) {
+                    return `<svg class="w-3.5 h-3.5 ml-1.5 text-slate-400 group-hover:text-slate-700 transition-colors duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>`;
+                }
+                return lbSortAsc 
+                    ? `<svg class="w-4 h-4 ml-1.5 text-indigo-600 drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 15l7-7 7 7" /></svg>` 
+                    : `<svg class="w-4 h-4 ml-1.5 text-indigo-600 drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7" /></svg>`;
+            };
+
+            const getHeaderClass = (colName, baseClass) => {
+                const isActive = activeSort === colName;
+                const activeStyle = isActive ? 'bg-indigo-50/60 text-indigo-700 shadow-[inset_0_-2px_0_#4f46e5]' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700';
+                return `group cursor-pointer transition-all duration-200 py-3 px-3 text-[11px] sm:text-xs font-bold uppercase select-none ${baseClass} ${activeStyle}`;
+            };
+
+            if (theadRow) {
+                if (isModeEfektifitas) {
+                    theadRow.innerHTML = `
+                        <th class="py-3 px-3 text-[11px] sm:text-xs font-bold text-slate-500 uppercase w-3/12 border-b border-slate-200">Agen & Region</th>
+                        <th onclick="sortLeaderboard('outbound')" class="${getHeaderClass('outbound', 'w-2/12 border-l border-b border-slate-200')}" title="Urutkan Outbound">
+                            <div class="flex items-center justify-center">Outbound ${getSortIcon('outbound')}</div>
+                        </th>
+                        <th onclick="sortLeaderboard('rp')" class="${getHeaderClass('rp', 'w-3/12 border-l border-b border-slate-200')}" title="Urutkan Rp & Pelanggan">
+                            <div class="flex items-center justify-center">Rp & Plg ${getSortIcon('rp')}</div>
+                        </th>
+                        <th onclick="sortLeaderboard('capaian')" class="${getHeaderClass('capaian', 'w-2/12 border-l border-b border-slate-200')}" title="Urutkan Pencapaian">
+                            <div class="flex items-center justify-center">Pencapaian ${getSortIcon('capaian')}</div>
+                        </th>
+                        <th onclick="sortLeaderboard('efektifitas')" class="${getHeaderClass('efektifitas', 'w-2/12 border-l border-b border-slate-200')}" title="Urutkan Efektifitas">
+                            <div class="flex items-center justify-center">Efektifitas ${getSortIcon('efektifitas')}</div>
+                        </th>
+                    `;
+                } else {
+                    theadRow.innerHTML = `
+                        <th class="py-3 px-3 text-[11px] sm:text-xs font-bold text-slate-500 uppercase w-5/12 border-b border-slate-200">Agen & Region</th>
+                        <th onclick="sortLeaderboard('rp')" class="${getHeaderClass('rp', 'w-4/12 border-l border-b border-slate-200')}" title="Urutkan Rp & Pelanggan">
+                            <div class="flex items-center justify-center">Rp & Pelanggan ${getSortIcon('rp')}</div>
+                        </th>
+                        <th onclick="sortLeaderboard('capaian')" class="${getHeaderClass('capaian', 'w-3/12 border-l border-b border-slate-200')}" title="Urutkan Pencapaian">
+                            <div class="flex items-center justify-center">Capaian ${getSortIcon('capaian')}</div>
+                        </th>
+                    `;
+                }
+            }
+
+            const isMedalEligible = !lbSortAsc && (activeSort === 'capaian' || activeSort === 'rp' || activeSort === 'efektifitas');
+
+            const html = board.map((row, index) => {
+                const medal = (isMedalEligible && index === 0) ? '🏆' : 
+                              (isMedalEligible && index === 1) ? '🥈' : 
+                              (isMedalEligible && index === 2) ? '🥉' : 
+                              `<span class="text-slate-400 font-semibold w-6 inline-block text-center">${index + 1}</span>`;
+                
+                if (isModeEfektifitas || !theadRow) {
+                    const pctCapaian = actualTargetRp > 0 ? (row.rp / actualTargetRp) * 100 : 0;
+                    const badgeCapaian = pctCapaian >= 100 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700";
+
+                    const pctEfektifitas = row.outbound > 0 ? (row.plg / row.outbound) * 100 : 0;
+                    const badgeEfektifitas = pctEfektifitas >= 40 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700";
+
+                    const renderEfektifitas = row.outbound > 0 
+                        ? `<div class="inline-block px-2 py-1 rounded-md text-xs font-bold shadow-sm ${badgeEfektifitas}">${pctEfektifitas.toFixed(1)}%</div>`
+                        : `<span class="text-slate-300 font-medium">-</span>`;
+
+                    const renderOutboundTeks = row.outbound > 0 
+                        ? `<div class="text-[11px] sm:text-sm font-bold text-slate-600">${row.outbound.toLocaleString('id-ID')}</div><div class="text-[11px] text-slate-400 font-medium mt-0.5">Panggilan</div>`
+                        : `<span class="text-slate-300 font-medium">-</span>`;
+
+                    const getCellBg = (colName) => activeSort === colName ? 'bg-indigo-50/20' : '';
+
+                    return `<tr class="animate-row hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0" style="animation-delay: ${Math.min(index, 20) * 30}ms;">
+                        <td class="py-2 px-3 w-3/12">
+                            <div class="flex items-start space-x-1 sm:space-x-2">
+                                <span class="text-sm sm:text-lg flex-shrink-0 mt-0.5">${medal}</span>
+                                <div class="pt-1">
+                                    <div class="font-bold text-slate-700 leading-tight text-[11px] sm:text-sm">${escapeHtml(row.agent)}</div>
+                                    <div class="text-[11px] text-slate-400 mt-0.5 line-clamp-1">${escapeHtml(row.regions)}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="py-2 px-3 w-2/12 text-center align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('outbound')}">${renderOutboundTeks}</td>
+                        <td class="py-2 px-3 w-3/12 text-center align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('rp')}">
+                            <div class="text-[11px] sm:text-sm font-semibold text-slate-700">${formatRupiah(row.rp)}</div>
+                            <div class="text-[11px] text-slate-400 font-medium mt-0.5">${row.plg.toLocaleString('id-ID')} plg</div>
+                        </td>
+                        <td class="py-2 px-3 w-2/12 text-center align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('capaian')}">
+                            <div class="inline-block px-2 py-1 rounded-md text-xs font-bold shadow-sm ${badgeCapaian}">${pctCapaian.toFixed(1)}%</div>
+                        </td>
+                        <td class="py-2 px-3 w-2/12 text-center align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('efektifitas')}">${renderEfektifitas}</td>
+                    </tr>`;
+                } else {
+                    const pct = actualTargetRp > 0 ? (row.rp / actualTargetRp) * 100 : 0;
+                    const badgeClass = pct >= 100 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700";
+                    const getCellBg = (colName) => activeSort === colName ? 'bg-indigo-50/20' : '';
+
+                    return `<tr class="animate-row hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0" style="animation-delay: ${Math.min(index, 20) * 30}ms;">
+                        <td class="py-2 px-3 w-5/12">
+                            <div class="flex items-start space-x-2 sm:space-x-3">
+                                <span class="text-base sm:text-lg flex-shrink-0 mt-0.5">${medal}</span>
+                                <div class="pt-1">
+                                    <div class="font-bold text-slate-700 leading-tight text-[11px] sm:text-sm">${escapeHtml(row.agent)}</div>
+                                    <div class="text-[11px] text-slate-400 mt-0.5">${escapeHtml(row.regions)}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="py-2 px-3 w-4/12 text-center align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('rp')}">
+                            <div class="text-[11px] sm:text-sm font-semibold text-slate-700">${formatRupiah(row.rp)}</div>
+                            <div class="text-[11px] text-slate-400 font-medium mt-0.5">${row.plg.toLocaleString('id-ID')} pelanggan</div>
+                        </td>
+                        <td class="py-2 px-3 w-3/12 text-right align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('capaian')}">
+                            <div class="inline-block px-2 py-1 rounded-md text-xs sm:text-sm font-bold shadow-sm ${badgeClass}">${pct.toFixed(1)}%</div>
+                        </td>
+                    </tr>`;
+                }
+            }).join('');
+
+            const colSpan = (isModeEfektifitas || !theadRow) ? 5 : 3;
+            tbody.innerHTML = html || `<tr><td colspan="${colSpan}" class="p-4 text-center text-slate-400">Belum ada data performa agen</td></tr>`;
+        }
+
+        /* ==========================================================
+           TAB PROGRES TAGIHAN
+        ========================================================== */
+        const isLunasRow = (row) => String(row['Status'] || '').trim().toUpperCase() === 'LUNAS';
+        const hasPayDate = (row) => { const t = row['Tanggal_Bayar_Saja']; return !!t && t !== 'Belum Bayar'; };
+        const inRange = (tgl, startStr, endStr) => !(startStr && tgl < startStr) && !(endStr && tgl > endStr);
+        const isLunasInRange = (row, startStr, endStr) => isLunasRow(row) && hasPayDate(row) && inRange(row['Tanggal_Bayar_Saja'], startStr, endStr);
+
+        function rowMatchesBillingType(row) {
+            const tipe = String(row['Tipe_Layanan'] || '').trim().toLowerCase();
+            if (currentBillingType === 'all') return tipe === 'prepaid' || tipe === 'postpaid';
+            return tipe === currentBillingType;
+        }
+
+        function initProgresTab() {
+            const regionSelect = document.getElementById('progFilterRegion');
+            regionSelect.innerHTML = '<option value="ALL">Semua Region</option>';
+            const regions = [...new Set(allData.progres.map(row => row['Region']).filter(Boolean))].sort();
+            regions.forEach(r => { const opt = document.createElement('option'); opt.value = r; opt.innerText = r; regionSelect.appendChild(opt); });
+            regionSelect.value = 'ALL';
+            setBillingType('prepaid', false, true);
+        }
+
+        function setBillingType(type, animate = true, forceLatest = false) {
+            currentBillingType = type;
+            const actClass = "px-5 py-2.5 rounded-lg bg-white shadow-sm text-rose-600 transition-all flex-shrink-0 sm:flex-none text-center whitespace-nowrap";
+            const inactClass = "px-5 py-2.5 rounded-lg text-slate-500 hover:text-slate-700 transition-all flex-shrink-0 sm:flex-none text-center whitespace-nowrap";
+
+            document.getElementById('btnPrepaid').className = type === 'prepaid' ? actClass : inactClass;
+            document.getElementById('btnPostpaid').className = type === 'postpaid' ? actClass.replace('text-rose-600', 'text-indigo-600') : inactClass;
+            document.getElementById('btnAllType').className = type === 'all' ? actClass.replace('text-rose-600', 'text-sky-600') : inactClass;
+
+            const titleTarget = document.getElementById('titleTarget');
+            if (type === 'prepaid') titleTarget.innerText = "Target Tagihan Prabayar (Tgl 25)";
+            else if (type === 'postpaid') titleTarget.innerText = "Target Tagihan Pascabayar (Tgl 1)";
+            else titleTarget.innerText = "Total Keseluruhan Tagihan";
+
+            updateDropdownsForBillingType(forceLatest);
+            if (animate) triggerActionAnimation(() => { applyProgresFilter(); });
+            else applyProgresFilter();
+        }
+
+        function updateDropdownsForBillingType(forceLatest = false) {
+            const typeFilteredData = allData.progres.filter(rowMatchesBillingType);
+            const periodSelect = document.getElementById('filterPeriode');
+            const currentSelectedPeriod = periodSelect.value;
+
+            periodSelect.innerHTML = '<option value="ALL">Semua Periode</option>';
+            const periods = [...new Set(typeFilteredData.map(row => row['Periode']).filter(Boolean))];
+            periods.sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
+            periods.forEach(p => { const opt = document.createElement('option'); opt.value = p; opt.innerText = p; periodSelect.appendChild(opt); });
+
+            if (forceLatest) periodSelect.value = periods.length > 0 ? periods[0] : 'ALL';
+            else if (currentSelectedPeriod === 'ALL') periodSelect.value = 'ALL';
+            else if (periods.includes(currentSelectedPeriod)) periodSelect.value = currentSelectedPeriod;
+            else periodSelect.value = periods.length > 0 ? periods[0] : 'ALL';
+        }
+
+        function resetProgresFilter() {
+            document.getElementById('progStartDate').value = '';
+            document.getElementById('progEndDate').value = '';
+            document.getElementById('progFilterRegion').value = 'ALL';
+            updateDropdownsForBillingType(true);
+            applyProgresFilter();
+        }
+
+        function getPeriodTotals(periodName, regionFilter, startDt = "", endDt = "") {
+            const rows = allData.progres.filter(r =>
+                String(r['Periode'] || '').trim() === String(periodName).trim() &&
+                (regionFilter === 'ALL' || String(r['Region'] || '').trim().toUpperCase() === regionFilter.trim().toUpperCase()) &&
+                rowMatchesBillingType(r));
+
+            let totalPlg = 0, totalRp = 0;
+            rows.forEach(row => {
+                if (isLunasInRange(row, startDt, endDt)) {
+                    totalPlg += Number(row['Jumlah_Pelanggan'] || 0);
+                    totalRp += Number(row['Jumlah_Rupiah'] || 0);
+                }
+            });
+            return { totalPlg, totalRp };
+        }
+
+        function applyProgresFilter() {
+            const selectedPeriod = document.getElementById('filterPeriode').value;
+            const selectedRegion = document.getElementById('progFilterRegion').value;
+            const startStr = document.getElementById('progStartDate').value;
+            const endStr = document.getElementById('progEndDate').value;
+
+            const typeFilteredData = allData.progres.filter(rowMatchesBillingType);
+
+            let boardBaseData = typeFilteredData;
+            if (selectedPeriod !== 'ALL') {
+                boardBaseData = boardBaseData.filter(row => String(row['Periode'] || '').trim() === String(selectedPeriod).trim());
+            }
+
+            let cardBaseData = boardBaseData;
+            if (selectedRegion !== 'ALL') {
+                cardBaseData = cardBaseData.filter(row => String(row['Region'] || '').trim().toUpperCase() === String(selectedRegion).trim().toUpperCase());
+            }
+
+            const lbRegionStats = {};
+            boardBaseData.forEach(row => {
+                const reg = String(row['Region'] || '').trim().toUpperCase();
+                if (!reg) return;
+                if (!lbRegionStats[reg]) lbRegionStats[reg] = { targetPlg: 0, targetRp: 0, lunasPlg: 0, lunasRp: 0 };
+                const plg = Number(row['Jumlah_Pelanggan'] || 0), rp = Number(row['Jumlah_Rupiah'] || 0);
+                lbRegionStats[reg].targetPlg += plg; lbRegionStats[reg].targetRp += rp;
+                if (isLunasInRange(row, startStr, endStr)) { lbRegionStats[reg].lunasPlg += plg; lbRegionStats[reg].lunasRp += rp; }
+            });
+
+            let gTargetPlg = 0, gTargetRp = 0, gLunasPlg = 0, gLunasRp = 0;
+            let gAktifPlg = 0, gBatalPlg = 0, gDeaktifPlg = 0, gLainPlg = 0, gLuarPlg = 0;
+
+            cardBaseData.forEach(row => {
+                const plg = Number(row['Jumlah_Pelanggan'] || 0), rp = Number(row['Jumlah_Rupiah'] || 0);
+                const statusUpper = String(row['Status'] || '').trim().toUpperCase();
+
+                gTargetPlg += plg; gTargetRp += rp;
+
+                if (isLunasInRange(row, startStr, endStr)) {
+                    gLunasPlg += plg; gLunasRp += rp;
+                } else if (isLunasRow(row)) {
+                    gLuarPlg += plg;
+                } else if (statusUpper === 'BATAL') {
+                    gBatalPlg += plg;
+                } else if (statusUpper === 'BATAL DEAKTIVASI') {
+                    gDeaktifPlg += plg;
+                } else if (statusUpper === 'BELUM BAYAR' || statusUpper === 'BELUM LUNAS') {
+                    gAktifPlg += plg;
+                } else {
+                    gLainPlg += plg;
+                }
+            });
+
+            const gSisaRp = gTargetRp - gLunasRp;
+            const gSisaPlg = gTargetPlg - gLunasPlg;
+            const pctCapaian = gTargetPlg > 0 ? (gLunasPlg / gTargetPlg) * 100 : 0;
+
+            animateCounter('progTargetRp', gTargetRp, true); animateCounter('progTargetPlg', gTargetPlg, false, "Pelanggan Ditagih");
+            animateCounter('progLunasRp', gLunasRp, true); animateCounter('progLunasPlg', gLunasPlg, false, "Pelanggan Lunas");
+            animateCounter('progSisaRp', Math.max(0, gSisaRp), true); animateCounter('progSisaPlg', Math.max(0, gSisaPlg), false, "Pelanggan Tertunggak");
+
+            document.getElementById('detAktif').innerText = gAktifPlg.toLocaleString('id-ID') + ' Plg';
+            document.getElementById('detBatal').innerText = gBatalPlg.toLocaleString('id-ID') + ' Plg';
+            document.getElementById('detDeaktif').innerText = gDeaktifPlg.toLocaleString('id-ID') + ' Plg';
+            document.getElementById('detLain').innerText = gLainPlg.toLocaleString('id-ID') + ' Plg';
+            document.getElementById('detLuar').innerText = gLuarPlg.toLocaleString('id-ID') + ' Plg';
+            document.getElementById('rowLuar').classList.toggle('hidden', gLuarPlg === 0);
+
+            document.getElementById('labelCapaianTeks').innerText = selectedRegion === 'ALL' ? 'Nasional' : 'Region ' + selectedRegion;
+            
+            document.getElementById('progBarFill').style.width = Math.min(pctCapaian, 100).toFixed(1) + "%";
+            const barColor = pctCapaian >= 100 ? 'bg-emerald-500' : 'bg-rose-500';
+            document.getElementById('progBarFill').className = `h-5 rounded-full transition-all duration-1000 ease-out ${barColor}`;
+            const textColor = pctCapaian >= 100 ? 'text-emerald-600' : 'text-rose-600';
+            document.getElementById('progBarText').innerText = pctCapaian.toFixed(1) + "%";
+            document.getElementById('progBarText').className = `text-2xl font-black ${textColor}`;
+
+            // MoM Comparison (Sudah menggunakan logika Dinamis Pengecekan Periode Terbaru)
+            const momBadge = document.getElementById('momBadge'), momSummaryCard = document.getElementById('momSummaryCard');
+            if (selectedPeriod !== 'ALL') {
+                const currDate = parsePeriodeToDate(selectedPeriod);
+                currDate.setMonth(currDate.getMonth() - 1);
+                const prevPeriod = `${bulanNames[currDate.getMonth()]} ${currDate.getFullYear()}`;
+
+                // PERBAIKAN 1: Deteksi periode terbaru secara dinamis (bukan patokan bulan kalender)
+                const typeFilteredData = allData.progres.filter(rowMatchesBillingType);
+                const allPeriodsForType = [...new Set(typeFilteredData.map(r => r['Periode']).filter(Boolean))];
+                allPeriodsForType.sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
+                const latestPeriod = allPeriodsForType.length > 0 ? allPeriodsForType[0] : "";
+                const isLatestPeriod = (String(selectedPeriod).trim() === String(latestPeriod).trim());
+
+                let prevStartStr = "", prevEndStr = "";
+
+                if (startStr || endStr) {
+                    prevStartStr = startStr ? shiftMonthBack(startStr) : "";
+                    prevEndStr = endStr ? shiftMonthBack(endStr) : "";
+                } else if (isLatestPeriod) {
+                    // PERBAIKAN 2: Ambil rentang tanggal aktual (min dan max) dari data yang sudah masuk
+                    let maxCurrentDate = "";
+                    let minCurrentDate = "";
+                    boardBaseData.forEach(r => {
+                        if (isLunasRow(r) && hasPayDate(r)) {
+                            if (!maxCurrentDate || r['Tanggal_Bayar_Saja'] > maxCurrentDate) {
+                                maxCurrentDate = r['Tanggal_Bayar_Saja'];
+                            }
+                            if (!minCurrentDate || r['Tanggal_Bayar_Saja'] < minCurrentDate) {
+                                minCurrentDate = r['Tanggal_Bayar_Saja'];
+                            }
+                        }
+                    });
+                    
+                    // Mundurkan tanggal aktual 1 bulan ke belakang untuk Apple-to-Apple
+                    if (maxCurrentDate && minCurrentDate) {
+                        prevStartStr = shiftMonthBack(minCurrentDate);
+                        prevEndStr = shiftMonthBack(maxCurrentDate);
+                    }
+                }
+
+                const prevTotals = getPeriodTotals(prevPeriod, selectedRegion, prevStartStr, prevEndStr);
+                const diffPlg = gLunasPlg - prevTotals.totalPlg;
+                const diffRp = gLunasRp - prevTotals.totalRp;
+                const pctPlg = prevTotals.totalPlg > 0 ? (diffPlg / prevTotals.totalPlg) * 100 : 0;
+                const pctRp = prevTotals.totalRp > 0 ? (diffRp / prevTotals.totalRp) * 100 : 0;
+
+                const badgeSign = diffPlg >= 0 ? '▲' : '▼';
+                const badgeColor = diffPlg >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700';
+
+                momBadge.className = `px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 ${badgeColor}`;
+                momBadge.innerHTML = `${badgeSign} ${Math.abs(pctPlg).toFixed(1)}%`;
+                momSummaryCard.classList.remove('hidden');
+
+                let subText = "";
+                
+                if (startStr || endStr) {
+                    const sId = prevStartStr ? prevStartStr.split('-').reverse().join('/') : 'Awal';
+                    const eId = prevEndStr ? prevEndStr.split('-').reverse().join('/') : 'Akhir';
+                    subText = `Dibandingkan dengan ${prevPeriod} [Tanggal: ${sId} - ${eId}]`;
+                } else if (isLatestPeriod && prevStartStr && prevEndStr) {
+                    const sId = prevStartStr.split('-').reverse().join('/');
+                    const eId = prevEndStr.split('-').reverse().join('/');
+                    subText = `Dibandingkan dengan ${prevPeriod} [Tanggal: ${sId} - ${eId}]`;
+                } else {
+                    const siklusTeks = currentBillingType === 'prepaid' ? "(Siklus Tgl 25)" : currentBillingType === 'postpaid' ? "(Siklus Tgl 1)" : "(Gabungan)";
+                    subText = `Dibandingkan dengan ${prevPeriod} ${siklusTeks}`;
+                }
+
+                document.getElementById('momSubTitle').innerText = subText;
+                document.getElementById('momPlgVal').innerText = prevTotals.totalPlg.toLocaleString('id-ID') + ' Plg';
+                document.getElementById('momRpVal').innerText = formatRupiah(prevTotals.totalRp);
+
+                const plgBadgeEl = document.getElementById('momPlgBadge');
+                plgBadgeEl.innerText = `${diffPlg >= 0 ? '+' : ''}${diffPlg.toLocaleString('id-ID')} (${pctPlg.toFixed(1)}%)`;
+                plgBadgeEl.className = `block text-[11px] font-semibold mt-0.5 ${diffPlg >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+
+                const rpBadgeEl = document.getElementById('momRpBadge');
+                rpBadgeEl.innerText = `${diffRp >= 0 ? '+' : ''}${formatRupiah(diffRp)} (${pctRp.toFixed(1)}%)`;
+                rpBadgeEl.className = `block text-[11px] font-semibold mt-0.5 ${diffRp >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+            } else {
+                momBadge.className = 'hidden';
+                momSummaryCard.classList.add('hidden');
+            }
+
+            // Region Leaderboard
+            const boardData = Object.keys(lbRegionStats)
+                .map(reg => { const s = lbRegionStats[reg]; return { region: reg, ...s, pct: s.targetPlg > 0 ? (s.lunasPlg / s.targetPlg) * 100 : 0 }; })
+                .sort((a, b) => b.pct - a.pct);
+
+            let tbodyHtml = '';
+            boardData.forEach((row, index) => {
+                const medal = index === 0 ? '🏆' : index === 1 ? '🥈' : index === 2 ? '🥉' : `<span class="text-slate-400 font-semibold w-6 inline-block text-center">${index + 1}</span>`;
+                const isSelected = selectedRegion !== 'ALL' && row.region.toUpperCase() === selectedRegion.toUpperCase();
+                const rowHighlight = isSelected ? 'bg-rose-50/80 font-medium' : '';
+                
+                const badgeClass = row.pct >= 100 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700";
+                
+                tbodyHtml += `<tr class="animate-row hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0 ${rowHighlight}" style="animation-delay: ${Math.min(index, 20) * 30}ms;">
+                        <td class="py-2 px-3 w-5/12">
+                            <div class="flex items-start space-x-2 sm:space-x-3">
+                                <span class="text-base sm:text-lg flex-shrink-0 mt-0.5">${medal}</span>
+                                <div class="font-bold text-slate-700 leading-tight text-[11px] sm:text-sm pt-1">${escapeHtml(row.region)}</div>
+                            </div>
+                        </td>
+                        <td class="py-2 px-3 w-4/12 text-center align-middle whitespace-nowrap"><div class="text-[11px] sm:text-sm font-semibold text-slate-700">${row.lunasPlg.toLocaleString('id-ID')}</div><div class="text-[11px] text-slate-400 font-medium mt-0.5">dari ${row.targetPlg.toLocaleString('id-ID')}</div></td>
+                        <td class="py-2 px-3 w-3/12 text-right align-middle whitespace-nowrap"><div class="inline-block px-2 py-1 rounded-md text-xs sm:text-sm font-bold shadow-sm ${badgeClass}">${row.pct.toFixed(1)}%</div></td>
+                    </tr>`;
+            });
+            document.getElementById('progresBody').innerHTML = tbodyHtml || '<tr><td colspan="3" class="p-4 text-center text-slate-400">Belum ada data untuk kriteria ini</td></tr>';
+
+            renderProgresTrendChartFromData(cardBaseData, selectedPeriod, selectedRegion, startStr, endStr);
+        }
+
+        function renderProgresTrendChartFromData(dataRows, selectedPeriod, selectedRegion, startStr, endStr) {
+            if (progresTrenChartInst) { progresTrenChartInst.destroy(); progresTrenChartInst = null; }
+            let chartLabels = [], chartValues = [], titleText = "";
+            const isDailyView = (selectedPeriod !== 'ALL') || (startStr !== '' || endStr !== '');
+
+            if (!isDailyView) {
+                titleText = selectedRegion !== 'ALL' ? `📈 Tren Lunas Bulanan - Region ${selectedRegion}` : "📈 Tren Jumlah Pelanggan Lunas Bulanan";
+                const mapBulanan = {}, sortMap = {};
+                dataRows.forEach(row => {
+                    const p = row['Periode'];
+                    if (p && isLunasInRange(row, startStr, endStr)) {
+                        mapBulanan[p] = (mapBulanan[p] || 0) + Number(row['Jumlah_Pelanggan'] || 0);
+                        sortMap[p] = parsePeriodeToDate(p);
+                    }
+                });
+                chartLabels = Object.keys(mapBulanan).sort((a, b) => sortMap[a] - sortMap[b]);
+                chartValues = chartLabels.map(p => mapBulanan[p]);
+            } else {
+                if (selectedPeriod !== 'ALL') {
+                    titleText = selectedRegion !== 'ALL' ? `📈 Tren Lunas Harian - ${selectedRegion} (${selectedPeriod})` : `📈 Tren Jumlah Pelanggan Lunas Harian - Periode ${selectedPeriod}`;
+                } else {
+                    titleText = selectedRegion !== 'ALL' ? `📈 Tren Lunas Harian - ${selectedRegion} (Sesuai Filter Tgl)` : `📈 Tren Jumlah Pelanggan Lunas Harian (Sesuai Filter Tgl)`;
+                }
+
+                const mapHarian = {};
+                dataRows.forEach(row => {
+                    if (isLunasInRange(row, startStr, endStr)) {
+                        const tgl = row['Tanggal_Bayar_Saja'];
+                        mapHarian[tgl] = (mapHarian[tgl] || 0) + Number(row['Jumlah_Pelanggan'] || 0);
+                    }
+                });
+                const sortedHarian = Object.keys(mapHarian).sort();
+                chartLabels = sortedHarian.map(d => {
+                    const obj = parseYMD(d);
+                    return obj ? obj.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) : d;
+                });
+                chartValues = sortedHarian.map(d => mapHarian[d]);
+            }
+
+            document.getElementById('trenTitle').innerText = titleText;
+
+            let lineCol = '#f43f5e', bgCol = 'rgba(244, 63, 94, 0.1)';
+            if (currentBillingType === 'postpaid') { lineCol = '#8b5cf6'; bgCol = 'rgba(139, 92, 246, 0.1)'; }
+            else if (currentBillingType === 'all') { lineCol = '#0ea5e9'; bgCol = 'rgba(14, 165, 233, 0.1)'; }
+
+            progresTrenChartInst = new Chart(document.getElementById('progresTrenChart'), {
+                type: 'line',
+                data: { labels: chartLabels, datasets: [{ data: chartValues, borderColor: lineCol, backgroundColor: bgCol, borderWidth: 2, fill: true, tension: 0.3 }] },
+                options: {
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false }, // TOOLTIP UX IMPROVEMENT
+                    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (context) => ' ' + context.parsed.y.toLocaleString('id-ID') + ' Pelanggan' } } },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { ticks: { maxRotation: 45, minRotation: 45 } } }
+                }
+            });
+        }
+
+        window.onload = () => {
+            loadAllData();
+        };
+    </script>
+</body>
+</html>
