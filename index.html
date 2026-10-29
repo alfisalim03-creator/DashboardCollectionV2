@@ -9,7 +9,12 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; margin: 0; }
-        .chart-container { position: relative; height: 320px; width: 100%; min-height: 280px; }
+        
+        /* DINAMIS CHART CONTAINER: Menyesuaikan tinggi secara responsif */
+        .chart-container { position: relative; height: 280px; width: 100%; }
+        @media (min-width: 768px) {
+            .chart-container { height: 340px; }
+        }
         
         /* Custom Scrollbar untuk Tabel */
         .table-scroll::-webkit-scrollbar { width: 4px; height: 6px; }
@@ -36,7 +41,7 @@
         }
     </style>
 </head>
-<body class="p-3 sm:p-6 text-slate-800">
+<body class="p-2 sm:p-4 md:p-6 text-slate-800">
 
     <!-- LOADING OVERLAY UTAMA -->
     <div id="loadingOverlay" class="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-start pt-16 sm:pt-20 transition-opacity duration-300">
@@ -49,14 +54,14 @@
         </div>
     </div>
 
-    <!-- WRAPPER DIUBAH MENJADI W-FULL UNTUK LEBAR PENUH DI GOOGLE SITES -->
-    <div id="dashboardWrapper" class="w-full mx-auto space-y-4 sm:space-y-6 px-2 sm:px-6">
+    <!-- WRAPPER UTAMA -->
+    <div id="dashboardWrapper" class="w-full max-w-7xl mx-auto space-y-4 sm:space-y-6">
 
         <!-- HEADER & BADGE WAKTU UPDATE -->
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-slate-200 pb-4">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-3 border-b border-slate-200 pb-4">
             <div>
-                <h1 class="text-2xl sm:text-3xl font-bold text-slate-800">Dashboard Pencapaian Collection</h1>
-                <p class="text-sm text-slate-500 mt-1">Monitoring Pencapaian, Efektifitas, dan Progres Tagihan Nasional.</p>
+                <h1 class="text-xl sm:text-2xl md:text-3xl font-bold text-slate-800">Dashboard Pencapaian Collection</h1>
+                <p class="text-xs sm:text-sm text-slate-500 mt-1">Monitoring Pencapaian, Efektifitas, dan Progres Tagihan Nasional.</p>
                 
                 <!-- Last Updated Badge -->
                 <div class="mt-3">
@@ -69,112 +74,113 @@
         </div>
 
         <!-- TAB SWITCHER MAIN -->
-        <div class="flex flex-col sm:flex-row items-center justify-between gap-3 w-full">
-            <div class="flex overflow-x-auto pb-2 sm:pb-0 gap-2 sm:gap-3 w-full sm:w-auto hide-scrollbar">
-                <button onclick="switchTab('sla3')" id="btnSla3" class="flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-indigo-600 text-white text-center">
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 w-full">
+            <div class="flex overflow-x-auto pb-1 sm:pb-0 gap-2 w-full sm:w-auto hide-scrollbar">
+                <button onclick="switchTab('sla3')" id="btnSla3" class="flex-1 sm:flex-none whitespace-nowrap px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm transition-all shadow-sm bg-indigo-600 text-white text-center">
                     Pencapaian Collection
                 </button>
-                <!-- SLA 4 DISEMBUNYIKAN (hidden) -->
                 <button onclick="switchTab('sla4')" id="btnSla4" class="hidden flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 text-center">
                     SLA 4: Recurring
                 </button>
-                <button onclick="switchTab('progres')" id="btnProgres" class="flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-white text-slate-600 border border-slate-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-center flex items-center justify-center gap-2">
+                <button onclick="switchTab('progres')" id="btnProgres" class="flex-1 sm:flex-none whitespace-nowrap px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm transition-all shadow-sm bg-white text-slate-600 border border-slate-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-center flex items-center justify-center gap-2">
                     Progres Tagihan
                 </button>
             </div>
 
-            <button onclick="forceRefreshData()" class="w-full sm:w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50 text-center flex items-center justify-center gap-2">
-                Sinkronkan Data
+            <button onclick="forceRefreshData()" class="w-full sm:w-auto px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm transition-all shadow-sm bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50 text-center flex items-center justify-center gap-2">
+                🔄 Sinkronkan Data
             </button>
         </div>
 
         <!-- WADAH 1: SLA 3 -->
         <div id="slaContainer" class="space-y-4 sm:space-y-6">
-            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+            <div class="bg-white p-3 sm:p-5 rounded-2xl shadow-sm border border-slate-100 space-y-3 sm:space-y-4">
                 <div class="flex items-center justify-between">
                     <div>
-                        <h3 class="text-sm font-bold text-slate-700">Filter Pencapaian</h3>
-                        <p class="text-[11px] text-slate-400">Pilih periode, region, & rentang tgl spesifik</p>
+                        <h3 class="text-xs sm:text-sm font-bold text-slate-700">Filter Pencapaian</h3>
+                        <p class="text-[10px] sm:text-[11px] text-slate-400">Pilih periode, region, & rentang tgl spesifik</p>
                     </div>
-                    <button onclick="resetFilter()" class="px-3 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 text-xs font-semibold rounded-xl hover:bg-rose-100 transition-colors shadow-sm flex items-center gap-1.5">
+                    <button onclick="resetFilter()" class="px-3 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 text-[11px] sm:text-xs font-semibold rounded-xl hover:bg-rose-100 transition-colors shadow-sm flex items-center gap-1.5">
                         Reset Filter
                     </button>
                 </div>
-                <div class="flex flex-wrap items-center gap-2.5 pt-2 border-t border-slate-100">
-                    <select id="filterPeriodeSla" onchange="onPeriodChangeSla()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 bg-slate-50 font-semibold text-slate-700">
+                <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+                    <select id="filterPeriodeSla" onchange="onPeriodChangeSla()" class="w-full sm:w-auto px-3.5 py-2 text-xs sm:text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 bg-slate-50 font-semibold text-slate-700">
                         <option value="ALL">Semua Periode</option>
                     </select>
-                    <select id="filterRegion" onchange="applyFilter()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 bg-slate-50 font-semibold text-slate-700">
+                    <select id="filterRegion" onchange="applyFilter()" class="w-full sm:w-auto px-3.5 py-2 text-xs sm:text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 bg-slate-50 font-semibold text-slate-700">
                         <option value="ALL">Semua Region</option>
                     </select>
-                    <div class="flex items-center gap-2 bg-white border border-slate-200 px-3.5 py-1.5 rounded-xl shadow-sm focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 transition-all">
+                    <div class="flex items-center justify-between sm:justify-start gap-1 sm:gap-2 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-sm w-full sm:w-auto">
                         <span class="text-xs font-semibold text-slate-500 whitespace-nowrap">📅 Rentang:</span>
-                        <!-- PERBAIKAN LEBAR INPUT TANGGAL -->
-                        <input type="date" id="startDate" onclick="try{this.showPicker();}catch(e){}" onchange="applyFilter()" class="text-sm bg-transparent border-none focus:outline-none focus:ring-0 text-slate-700 cursor-pointer font-medium w-[110px] sm:w-[120px]">
+                        <input type="date" id="startDate" onclick="try{this.showPicker();}catch(e){}" onchange="applyFilter()" class="text-xs sm:text-sm bg-transparent border-none focus:outline-none focus:ring-0 text-slate-700 cursor-pointer font-medium w-[110px] sm:w-[120px]">
                         <span class="text-slate-300">|</span>
-                        <input type="date" id="endDate" onclick="try{this.showPicker();}catch(e){}" onchange="applyFilter()" class="text-sm bg-transparent border-none focus:outline-none focus:ring-0 text-slate-700 cursor-pointer font-medium w-[110px] sm:w-[120px]">
+                        <input type="date" id="endDate" onclick="try{this.showPicker();}catch(e){}" onchange="applyFilter()" class="text-xs sm:text-sm bg-transparent border-none focus:outline-none focus:ring-0 text-slate-700 cursor-pointer font-medium w-[110px] sm:w-[120px]">
                     </div>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-emerald-500 border border-slate-100 flex flex-col justify-center">
-                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Total Keseluruhan Revenue</p>
-                    <h3 id="totalRupiah" class="text-2xl sm:text-3xl font-bold text-emerald-600">Rp 0</h3>
+            <!-- KARTU KPI UTAMA -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border-l-4 border-l-emerald-500 border border-slate-100 flex flex-col justify-center">
+                    <p class="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Total Keseluruhan Revenue</p>
+                    <h3 id="totalRupiah" class="text-xl sm:text-2xl md:text-3xl font-bold text-emerald-600 truncate">Rp 0</h3>
                 </div>
-                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-indigo-600 border border-slate-100 flex flex-col justify-center">
-                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Total Keseluruhan Pelanggan</p>
-                    <h3 id="totalTiket" class="text-2xl sm:text-3xl font-bold text-indigo-600">0</h3>
+                <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border-l-4 border-l-indigo-600 border border-slate-100 flex flex-col justify-center">
+                    <p class="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Total Keseluruhan Pelanggan</p>
+                    <h3 id="totalTiket" class="text-xl sm:text-2xl md:text-3xl font-bold text-indigo-600 truncate">0</h3>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-sky-500 border border-slate-100 flex flex-col justify-center">
-                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Telecollection</p>
-                    <h3 id="teleRev" class="text-xl sm:text-2xl font-bold text-slate-700 mb-1">Rp 0</h3>
+            <!-- KARTU KPI KATEGORI -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border-l-4 border-l-sky-500 border border-slate-100 flex flex-col justify-center">
+                    <p class="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Telecollection</p>
+                    <h3 id="teleRev" class="text-lg sm:text-xl md:text-2xl font-bold text-slate-700 mb-1 truncate">Rp 0</h3>
                     <p id="telePlg" class="text-xs sm:text-sm font-medium text-sky-500">0 Pelanggan</p>
                 </div>
-                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-indigo-500 border border-slate-100 flex flex-col justify-center">
-                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Retention</p>
-                    <h3 id="retRev" class="text-xl sm:text-2xl font-bold text-slate-700 mb-1">Rp 0</h3>
+                <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border-l-4 border-l-indigo-500 border border-slate-100 flex flex-col justify-center">
+                    <p class="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Retention</p>
+                    <h3 id="retRev" class="text-lg sm:text-xl md:text-2xl font-bold text-slate-700 mb-1 truncate">Rp 0</h3>
                     <p id="retPlg" class="text-xs sm:text-sm font-medium text-indigo-500">0 Pelanggan</p>
                 </div>
-                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-emerald-500 border border-slate-100 flex flex-col justify-center">
-                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Winback</p>
-                    <h3 id="winRev" class="text-xl sm:text-2xl font-bold text-slate-700 mb-1">Rp 0</h3>
+                <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border-l-4 border-l-emerald-500 border border-slate-100 flex flex-col justify-center">
+                    <p class="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Winback</p>
+                    <h3 id="winRev" class="text-lg sm:text-xl md:text-2xl font-bold text-slate-700 mb-1 truncate">Rp 0</h3>
                     <p id="winPlg" class="text-xs sm:text-sm font-medium text-emerald-500">0 Pelanggan</p>
                 </div>
             </div>
 
-            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <h3 id="trenChartTitle" class="text-sm font-semibold text-slate-700 mb-4">📈 Tren Pencapaian Bulanan</h3>
+            <!-- GRAFIK TREN -->
+            <div class="bg-white p-3 sm:p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <h3 id="trenChartTitle" class="text-xs sm:text-sm font-semibold text-slate-700 mb-3 sm:mb-4">📈 Tren Pencapaian Bulanan</h3>
                 <div class="chart-container"><canvas id="trenChart"></canvas></div>
             </div>
 
             <div class="flex flex-col gap-4 sm:gap-6 pb-8">
-                <!-- KARTU ATAS: Top Kinerja Region -->
-                <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
-                    <h3 id="regionChartTitle" class="text-sm font-semibold text-slate-700 mb-4">🏆 Top Kinerja Region</h3>
-                    <div class="overflow-y-auto table-scroll" style="max-height: 420px;">
-                        <div id="regionChartHost" style="position: relative; min-width: 450px;"><canvas id="regionChart"></canvas></div>
+                <!-- TOP KINERJA REGION -->
+                <div class="bg-white p-3 sm:p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
+                    <h3 id="regionChartTitle" class="text-xs sm:text-sm font-semibold text-slate-700 mb-3 sm:mb-4">🏆 Top Kinerja Region</h3>
+                    <div class="overflow-x-auto overflow-y-auto table-scroll" style="max-height: 420px;">
+                        <div id="regionChartHost" style="position: relative; min-width: 380px;"><canvas id="regionChart"></canvas></div>
                     </div>
                 </div>
                 
-                <!-- KARTU BAWAH: Leaderboard Agen (KOMPREHENSIF) -->
-                <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
-                    <h3 id="leaderboardTitle" class="text-sm font-semibold text-slate-700 mb-4">Leaderboard Agen & Efektifitas</h3>
-                    <div class="overflow-y-auto table-scroll" style="max-height: 550px;">
-                        <table class="w-full text-left border-collapse table-fixed min-w-[600px]">
+                <!-- LEADERBOARD AGEN -->
+                <div class="bg-white p-3 sm:p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
+                    <h3 id="leaderboardTitle" class="text-xs sm:text-sm font-semibold text-slate-700 mb-3 sm:mb-4">Leaderboard Agen & Efektifitas</h3>
+                    <div class="overflow-x-auto overflow-y-auto table-scroll" style="max-height: 550px;">
+                        <table class="w-full text-left border-collapse min-w-[650px]">
                             <thead>
                                 <tr id="leaderboardHeadRow" class="bg-slate-50 sticky top-0 z-10 border-b border-slate-100">
-                                    <th class="py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase w-3/12">Agen & Region</th>
-                                    <th onclick="sortLeaderboard('outbound')" class="cursor-pointer hover:bg-slate-200 transition-colors py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-center w-2/12 border-l border-slate-200 select-none" title="Klik untuk urutkan">Outbound <span class="text-slate-400 font-bold ml-1 text-[11px]">↕</span></th>
-                                    <th onclick="sortLeaderboard('rp')" class="cursor-pointer hover:bg-slate-200 transition-colors py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-center w-3/12 border-l border-slate-200 select-none" title="Klik untuk urutkan">Rp & Pelanggan <span class="text-slate-400 font-bold ml-1 text-[11px]">↕</span></th>
-                                    <th onclick="sortLeaderboard('capaian')" class="cursor-pointer hover:bg-slate-200 transition-colors py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-center w-2/12 border-l border-slate-200 select-none" title="Klik untuk urutkan">Capaian <span class="text-slate-400 font-bold ml-1 text-[11px]">↕</span></th>
-                                    <th onclick="sortLeaderboard('efektifitas')" class="cursor-pointer hover:bg-slate-200 transition-colors py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-center w-2/12 border-l border-slate-200 select-none" title="Klik untuk urutkan">Efektifitas <span class="text-indigo-600 font-black ml-1 text-[12px]">↓</span></th>
+                                    <th class="py-2.5 px-3 text-[10px] sm:text-xs font-semibold text-slate-500 uppercase w-3/12">Agen & Region</th>
+                                    <th onclick="sortLeaderboard('outbound')" class="cursor-pointer hover:bg-slate-200 transition-colors py-2.5 px-3 text-[10px] sm:text-xs font-semibold text-slate-500 uppercase text-center w-2/12 border-l border-slate-200 select-none">Outbound ↕</th>
+                                    <th onclick="sortLeaderboard('rp')" class="cursor-pointer hover:bg-slate-200 transition-colors py-2.5 px-3 text-[10px] sm:text-xs font-semibold text-slate-500 uppercase text-center w-3/12 border-l border-slate-200 select-none">Rp & Pelanggan ↕</th>
+                                    <th onclick="sortLeaderboard('capaian')" class="cursor-pointer hover:bg-slate-200 transition-colors py-2.5 px-3 text-[10px] sm:text-xs font-semibold text-slate-500 uppercase text-center w-2/12 border-l border-slate-200 select-none">Capaian ↕</th>
+                                    <th onclick="sortLeaderboard('efektifitas')" class="cursor-pointer hover:bg-slate-200 transition-colors py-2.5 px-3 text-[10px] sm:text-xs font-semibold text-slate-500 uppercase text-center w-2/12 border-l border-slate-200 select-none">Efektifitas ↓</th>
                                 </tr>
                             </thead>
-                            <tbody id="leaderboardBody" class="divide-y divide-slate-100 text-sm">
+                            <tbody id="leaderboardBody" class="divide-y divide-slate-100 text-xs sm:text-sm">
                                 <tr><td colspan="5" class="p-4 text-center text-slate-400">Memuat data...</td></tr>
                             </tbody>
                         </table>
@@ -186,83 +192,78 @@
         <!-- WADAH 2: PROGRES TAGIHAN -->
         <div id="progresContainer" class="hidden space-y-4 sm:space-y-6 pb-8">
             <div class="flex flex-col items-center justify-center">
-                <div class="bg-slate-100 p-1.5 rounded-xl inline-flex w-full sm:w-auto overflow-x-auto text-sm font-semibold shadow-inner border border-slate-200 hide-scrollbar">
-                    <button onclick="setBillingType('prepaid')" id="btnPrepaid" class="px-5 py-2.5 rounded-lg bg-white shadow-sm text-rose-600 transition-all flex-shrink-0 sm:flex-none text-center whitespace-nowrap">Prabayar</button>
-                    <button onclick="setBillingType('postpaid')" id="btnPostpaid" class="px-5 py-2.5 rounded-lg text-slate-500 hover:text-slate-700 transition-all flex-shrink-0 sm:flex-none text-center whitespace-nowrap">Pascabayar</button>
-                    <button onclick="setBillingType('all')" id="btnAllType" class="px-5 py-2.5 rounded-lg text-slate-500 hover:text-slate-700 transition-all flex-shrink-0 sm:flex-none text-center whitespace-nowrap">Semua Tagihan</button>
+                <div class="bg-slate-100 p-1.5 rounded-xl inline-flex w-full sm:w-auto overflow-x-auto text-xs sm:text-sm font-semibold shadow-inner border border-slate-200 hide-scrollbar">
+                    <button onclick="setBillingType('prepaid')" id="btnPrepaid" class="flex-1 sm:flex-none px-4 sm:px-5 py-2 rounded-lg bg-white shadow-sm text-rose-600 transition-all text-center whitespace-nowrap">Prabayar</button>
+                    <button onclick="setBillingType('postpaid')" id="btnPostpaid" class="flex-1 sm:flex-none px-4 sm:px-5 py-2 rounded-lg text-slate-500 hover:text-slate-700 transition-all text-center whitespace-nowrap">Pascabayar</button>
+                    <button onclick="setBillingType('all')" id="btnAllType" class="flex-1 sm:flex-none px-4 sm:px-5 py-2 rounded-lg text-slate-500 hover:text-slate-700 transition-all text-center whitespace-nowrap">Semua Tagihan</button>
                 </div>
             </div>
 
-            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4 mt-2">
+            <div class="bg-white p-3 sm:p-5 rounded-2xl shadow-sm border border-slate-100 space-y-3 sm:space-y-4 mt-2">
                 <div class="flex items-center justify-between">
                     <div>
-                        <h3 class="text-sm font-bold text-slate-700">Filter Pencapaian</h3>
-                        <p class="text-[11px] text-slate-400">Pilih periode, region, & rentang tgl spesifik</p>
+                        <h3 class="text-xs sm:text-sm font-bold text-slate-700">Filter Pencapaian</h3>
+                        <p class="text-[10px] sm:text-[11px] text-slate-400">Pilih periode, region, & rentang tgl spesifik</p>
                     </div>
-                    <button onclick="resetProgresFilter()" class="px-3 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 text-xs font-semibold rounded-xl hover:bg-rose-100 transition-colors shadow-sm flex items-center gap-1.5">
+                    <button onclick="resetProgresFilter()" class="px-3 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 text-[11px] sm:text-xs font-semibold rounded-xl hover:bg-rose-100 transition-colors shadow-sm flex items-center gap-1.5">
                         🔄 Reset Filter
                     </button>
                 </div>
-                <div class="flex flex-wrap items-center gap-2.5 pt-2 border-t border-slate-100">
-                    <select id="filterPeriode" onchange="applyProgresFilter()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-rose-500 bg-slate-50 font-semibold text-slate-700">
+                <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+                    <select id="filterPeriode" onchange="applyProgresFilter()" class="w-full sm:w-auto px-3.5 py-2 text-xs sm:text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-rose-500 bg-slate-50 font-semibold text-slate-700">
                         <option value="ALL">Semua Periode</option>
                     </select>
-                    <select id="progFilterRegion" onchange="applyProgresFilter()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-rose-500 bg-slate-50 font-semibold text-slate-700">
+                    <select id="progFilterRegion" onchange="applyProgresFilter()" class="w-full sm:w-auto px-3.5 py-2 text-xs sm:text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-rose-500 bg-slate-50 font-semibold text-slate-700">
                         <option value="ALL">Semua Region</option>
                     </select>
-                    <div class="flex items-center gap-2 bg-white border border-slate-200 px-3.5 py-1.5 rounded-xl shadow-sm focus-within:border-rose-500 focus-within:ring-1 focus-within:ring-rose-500 transition-all">
+                    <div class="flex items-center justify-between sm:justify-start gap-1 sm:gap-2 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-sm w-full sm:w-auto">
                         <span class="text-xs font-semibold text-slate-500 whitespace-nowrap">📅 Tgl Lunas:</span>
-                        <!-- PERBAIKAN LEBAR INPUT TANGGAL -->
-                        <input type="date" id="progStartDate" onclick="try{this.showPicker();}catch(e){}" onchange="applyProgresFilter()" class="text-sm bg-transparent border-none focus:outline-none focus:ring-0 text-slate-700 cursor-pointer font-medium w-[110px] sm:w-[120px]">
+                        <input type="date" id="progStartDate" onclick="try{this.showPicker();}catch(e){}" onchange="applyProgresFilter()" class="text-xs sm:text-sm bg-transparent border-none focus:outline-none focus:ring-0 text-slate-700 cursor-pointer font-medium w-[110px] sm:w-[120px]">
                         <span class="text-slate-300">|</span>
-                        <input type="date" id="progEndDate" onclick="try{this.showPicker();}catch(e){}" onchange="applyProgresFilter()" class="text-sm bg-transparent border-none focus:outline-none focus:ring-0 text-slate-700 cursor-pointer font-medium w-[110px] sm:w-[120px]">
+                        <input type="date" id="progEndDate" onclick="try{this.showPicker();}catch(e){}" onchange="applyProgresFilter()" class="text-xs sm:text-sm bg-transparent border-none focus:outline-none focus:ring-0 text-slate-700 cursor-pointer font-medium w-[110px] sm:w-[120px]">
                     </div>
                 </div>
             </div>
 
-            <!-- LAYOUT 3 KARTU KPI -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-stretch">
-                <!-- Kartu Biru -->
-                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-blue-500 border-t border-r border-b border-slate-100 flex flex-col justify-center h-full">
-                    <p id="titleTarget" class="text-xs font-semibold uppercase text-slate-400 mb-1">Target Tagihan (Tgl 25)</p>
-                    <h3 id="progTargetRp" class="text-2xl sm:text-3xl font-bold text-slate-700 mb-1">Rp 0</h3>
+            <!-- LAYOUT 3 KARTU KPI PROGRES -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 items-stretch">
+                <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border-l-4 border-l-blue-500 border border-slate-100 flex flex-col justify-center h-full">
+                    <p id="titleTarget" class="text-[10px] sm:text-xs font-semibold uppercase text-slate-400 mb-1">Target Tagihan (Tgl 25)</p>
+                    <h3 id="progTargetRp" class="text-xl sm:text-2xl md:text-3xl font-bold text-slate-700 mb-1 truncate">Rp 0</h3>
                     <p id="progTargetPlg" class="text-xs sm:text-sm font-medium text-blue-500">0 Pelanggan Ditagih</p>
                 </div>
-                <!-- Kartu Hijau -->
-                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-emerald-500 border-t border-r border-b border-slate-100 flex flex-col justify-center h-full">
-                    <p class="text-xs font-semibold uppercase text-slate-400 mb-1">Sudah Dibayar (Lunas)</p>
-                    <h3 id="progLunasRp" class="text-2xl sm:text-3xl font-bold text-emerald-600 mb-1">Rp 0</h3>
+                <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border-l-4 border-l-emerald-500 border border-slate-100 flex flex-col justify-center h-full">
+                    <p class="text-[10px] sm:text-xs font-semibold uppercase text-slate-400 mb-1">Sudah Dibayar (Lunas)</p>
+                    <h3 id="progLunasRp" class="text-xl sm:text-2xl md:text-3xl font-bold text-emerald-600 mb-1 truncate">Rp 0</h3>
                     <p id="progLunasPlg" class="text-xs sm:text-sm font-medium text-emerald-500">0 Pelanggan Lunas</p>
                 </div>
-                <!-- Kartu Merah -->
-                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-rose-500 border-t border-r border-b border-slate-100 flex flex-col justify-between h-full gap-4">
+                <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border-l-4 border-l-rose-500 border border-slate-100 flex flex-col justify-between h-full gap-4">
                     <div>
-                        <p class="text-xs font-semibold uppercase text-rose-400 mb-1">Sisa Tagihan (Tunggakan)</p>
-                        <h3 id="progSisaRp" class="text-2xl sm:text-3xl font-bold text-rose-600 mb-1">Rp 0</h3>
+                        <p class="text-[10px] sm:text-xs font-semibold uppercase text-rose-400 mb-1">Sisa Tagihan (Tunggakan)</p>
+                        <h3 id="progSisaRp" class="text-xl sm:text-2xl md:text-3xl font-bold text-rose-600 mb-1 truncate">Rp 0</h3>
                         <p id="progSisaPlg" class="text-xs sm:text-sm font-medium text-rose-500">0 Pelanggan Tertunggak</p>
 
-                        <!-- RINCIAN SISA TAGIHAN -->
-                        <div class="mt-4 pt-3 border-t border-dashed border-slate-200 space-y-1.5">
-                            <div class="flex justify-between items-center">
-                                <span class="text-[11px] font-medium text-slate-500 flex items-center gap-1.5"><span class="text-amber-500">⚠️</span> Tunggakan Aktif:</span>
-                                <span id="detAktif" class="text-xs font-bold text-rose-600">0 Plg</span>
+                        <div class="mt-3 pt-3 border-t border-dashed border-slate-200 space-y-1.5">
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="font-medium text-slate-500 flex items-center gap-1.5">⚠️ Tunggakan Aktif:</span>
+                                <span id="detAktif" class="font-bold text-rose-600">0 Plg</span>
                             </div>
-                            <div class="flex justify-between items-center">
-                                <span class="text-[11px] font-medium text-slate-500 flex items-center gap-1.5"><span class="text-rose-400">❌</span> Batal (Cancel Billing):</span>
-                                <span id="detBatal" class="text-[11px] font-bold text-slate-600">0 Plg</span>
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="font-medium text-slate-500 flex items-center gap-1.5">❌ Batal (Cancel):</span>
+                                <span id="detBatal" class="font-bold text-slate-600">0 Plg</span>
                             </div>
-                            <div class="flex justify-between items-center">
-                                <span class="text-[11px] font-medium text-slate-500 flex items-center gap-1.5"><span class="text-rose-400">🛑</span> Batal Deaktivasi:</span>
-                                <span id="detDeaktif" class="text-[11px] font-bold text-slate-600">0 Plg</span>
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="font-medium text-slate-500 flex items-center gap-1.5">🛑 Batal Deaktivasi:</span>
+                                <span id="detDeaktif" class="font-bold text-slate-600">0 Plg</span>
                             </div>
-                            <div class="flex justify-between items-center">
-                                <span class="text-[11px] font-medium text-slate-500 flex items-center gap-1.5"><span class="text-slate-400">⚪</span> Batal Lainnya:</span>
-                                <span id="detLain" class="text-[11px] font-bold text-slate-400">0 Plg</span>
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="font-medium text-slate-500 flex items-center gap-1.5">⚪ Lainnya:</span>
+                                <span id="detLain" class="font-bold text-slate-400">0 Plg</span>
                             </div>
                             <div id="rowLuar" class="hidden">
-                                <div class="flex justify-between items-center">
-                                    <span class="text-[11px] font-medium text-slate-500 flex items-center gap-1.5"><span class="text-emerald-400">🕒</span> Lunas di Luar Filter Tgl:</span>
-                                    <span id="detLuar" class="text-[11px] font-bold text-slate-600">0 Plg</span>
+                                <div class="flex justify-between items-center text-xs">
+                                    <span class="font-medium text-slate-500 flex items-center gap-1.5">🕒 Lunas di Luar Filter:</span>
+                                    <span id="detLuar" class="font-bold text-slate-600">0 Plg</span>
                                 </div>
                             </div>
                         </div>
@@ -270,19 +271,19 @@
                 </div>
             </div>
 
-            <!-- PROGRESS BAR DENGAN BADGE MoM -->
-            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-center space-y-3">
+            <!-- PROGRESS BAR -->
+            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-center space-y-3">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2">
                     <div>
-                        <h3 class="text-sm font-bold text-slate-700">Pencapaian <span id="labelCapaianTeks">Nasional</span></h3>
+                        <h3 class="text-xs sm:text-sm font-bold text-slate-700">Pencapaian <span id="labelCapaianTeks">Nasional</span></h3>
                     </div>
                     <div class="flex items-center gap-3">
                         <span id="momBadge" class="hidden px-2.5 py-1 rounded-lg text-xs font-bold items-center gap-1"></span>
-                        <span id="progBarText" class="text-2xl font-black text-rose-600">0%</span>
+                        <span id="progBarText" class="text-xl sm:text-2xl font-black text-rose-600">0%</span>
                     </div>
                 </div>
-                <div class="w-full bg-slate-100 rounded-full h-5 overflow-hidden border border-slate-200">
-                    <div id="progBarFill" class="bg-rose-500 h-5 rounded-full transition-all duration-1000 ease-out" style="width: 0%"></div>
+                <div class="w-full bg-slate-100 rounded-full h-4 sm:h-5 overflow-hidden border border-slate-200">
+                    <div id="progBarFill" class="bg-rose-500 h-full rounded-full transition-all duration-1000 ease-out" style="width: 0%"></div>
                 </div>
             </div>
 
@@ -291,41 +292,43 @@
                 <div class="flex items-center gap-3 w-full sm:w-auto">
                     <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-lg flex-shrink-0">📊</div>
                     <div>
-                        <h4 class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Perbandingan Bulan Lalu</h4>
+                        <h4 class="text-[10px] sm:text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Perbandingan Bulan Lalu</h4>
                         <p id="momSubTitle" class="text-[11px] sm:text-sm font-bold text-slate-200 leading-tight mt-0.5">-</p>
                     </div>
                 </div>
-                <div class="grid grid-cols-2 gap-4 w-full sm:w-auto text-left sm:text-right">
+                <div class="grid grid-cols-2 gap-3 w-full sm:w-auto text-left sm:text-right">
                     <div class="bg-white/5 p-3 rounded-xl border border-white/10">
-                        <span class="block text-[11px] text-slate-400 uppercase font-semibold">Pelanggan Lunas</span>
-                        <span id="momPlgVal" class="text-sm sm:text-base font-bold text-white">-</span>
-                        <span id="momPlgBadge" class="block text-[11px] font-semibold mt-0.5">-</span>
+                        <span class="block text-[10px] sm:text-[11px] text-slate-400 uppercase font-semibold">Pelanggan Lunas</span>
+                        <span id="momPlgVal" class="text-xs sm:text-base font-bold text-white">-</span>
+                        <span id="momPlgBadge" class="block text-[10px] sm:text-[11px] font-semibold mt-0.5">-</span>
                     </div>
                     <div class="bg-white/5 p-3 rounded-xl border border-white/10">
-                        <span class="block text-[11px] text-slate-400 uppercase font-semibold">Total Revenue</span>
-                        <span id="momRpVal" class="text-sm sm:text-base font-bold text-white">-</span>
-                        <span id="momRpBadge" class="block text-[11px] font-semibold mt-0.5">-</span>
+                        <span class="block text-[10px] sm:text-[11px] text-slate-400 uppercase font-semibold">Total Revenue</span>
+                        <span id="momRpVal" class="text-xs sm:text-base font-bold text-white truncate">-</span>
+                        <span id="momRpBadge" class="block text-[10px] sm:text-[11px] font-semibold mt-0.5">-</span>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <h3 id="trenTitle" class="text-sm font-semibold text-slate-700 mb-4">📈 Tren Jumlah Pelanggan Lunas Harian</h3>
+            <!-- GRAFIK TREN PROGRES -->
+            <div class="bg-white p-3 sm:p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <h3 id="trenTitle" class="text-xs sm:text-sm font-semibold text-slate-700 mb-3 sm:mb-4">📈 Tren Jumlah Pelanggan Lunas Harian</h3>
                 <div class="chart-container"><canvas id="progresTrenChart"></canvas></div>
             </div>
 
-            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <h3 class="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">🏆 Leaderboard Region Tertinggi</h3>
-                <div>
-                    <table class="w-full text-left border-collapse table-fixed">
+            <!-- LEADERBOARD REGION PROGRES -->
+            <div class="bg-white p-3 sm:p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <h3 class="text-xs sm:text-sm font-semibold text-slate-700 mb-3 sm:mb-4 flex items-center gap-2">🏆 Leaderboard Region Tertinggi</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse min-w-[450px]">
                         <thead>
                             <tr class="bg-slate-50 border-b border-slate-100">
-                                <th class="py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase w-5/12">Region</th>
-                                <th class="py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-center w-4/12">Status Pelanggan</th>
-                                <th class="py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-right w-3/12">Capaian</th>
+                                <th class="py-2.5 px-3 text-[10px] sm:text-xs font-semibold text-slate-500 uppercase w-5/12">Region</th>
+                                <th class="py-2.5 px-3 text-[10px] sm:text-xs font-semibold text-slate-500 uppercase text-center w-4/12">Status Pelanggan</th>
+                                <th class="py-2.5 px-3 text-[10px] sm:text-xs font-semibold text-slate-500 uppercase text-right w-3/12">Capaian</th>
                             </tr>
                         </thead>
-                        <tbody id="progresBody" class="divide-y divide-slate-100 text-sm">
+                        <tbody id="progresBody" class="divide-y divide-slate-100 text-xs sm:text-sm">
                             <tr><td colspan="3" class="p-4 text-center text-slate-400">Memuat data...</td></tr>
                         </tbody>
                     </table>
@@ -334,12 +337,12 @@
         </div>
     </div>
 
+    <!-- SCRIPT UTAMA -->
     <script>
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxohEYzE3Th9LRITFZHlK4IAmsXN-byA88nTytdF2PQj2z8A82bicIJUOZliE1IDjo2WA/exec";
         
-        // Menipiskan garis bantu grafik agar terlihat lebih bersih (Clean UI)
         Chart.defaults.scale.grid.color = '#f1f5f9'; 
-        Chart.defaults.font.family = "'Inter', sans-serif"; // Menyamakan font grafik dengan web
+        Chart.defaults.font.family = "'Inter', sans-serif";
         
         let allData = { sla3: [], sla4: [], progres: [] };
         let rawData = [];
@@ -360,9 +363,6 @@
             { kw: 'win',   rev: 'winRev',  plg: 'winPlg'  }
         ];
 
-        /* ==========================================================
-           HELPER UMUM
-        ========================================================== */
         function escapeHtml(v) {
             return String(v == null ? '' : v)
                 .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -426,8 +426,7 @@
             const s = String(value);
             if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
             const d = new Date(s);
-            if (isNaN(d)) return s;
-            return toYMD(d);
+            return isNaN(d) ? s : toYMD(d);
         };
 
         function shiftMonthBack(dateStr) {
@@ -456,9 +455,6 @@
             return result;
         }
 
-        /* ==========================================================
-           AMBIL DATA DARI SERVER & WAKTU UPDATE
-        ========================================================== */
         function showLoading(title, text) {
             const overlay = document.getElementById('loadingOverlay');
             document.getElementById('loadingTitle').innerText = title;
@@ -469,11 +465,11 @@
         function hideLoading() {
             const overlay = document.getElementById('loadingOverlay');
             if (overlay) {
-                overlay.style.opacity = '0'; // Membuatnya memudar
+                overlay.style.opacity = '0';
                 setTimeout(() => {
                     overlay.classList.add('hidden');
-                    overlay.style.opacity = '1'; // Reset untuk loading berikutnya
-                }, 300); // Menunggu animasi pudar 0.3 detik selesai
+                    overlay.style.opacity = '1';
+                }, 300);
             }
         }
 
@@ -536,19 +532,16 @@
             }, 350);
         }
 
-        /* ==========================================================
-           TAB UTAMA
-        ========================================================== */
         function switchTab(tab) {
             triggerActionAnimation(() => {
                 currentTab = tab;
                 const btn3 = document.getElementById('btnSla3'), btnP = document.getElementById('btnProgres');
                 const slaBox = document.getElementById('slaContainer'), progBox = document.getElementById('progresContainer');
 
-                const activeSla = "flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-indigo-600 text-white text-center";
-                const inactiveSla = "flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 text-center";
-                const activeProg = "flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-rose-500 text-white text-center flex items-center justify-center gap-2";
-                const inactiveProg = "flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-white text-slate-600 border border-slate-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-center flex items-center justify-center gap-2";
+                const activeSla = "flex-1 sm:flex-none whitespace-nowrap px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm transition-all shadow-sm bg-indigo-600 text-white text-center";
+                const inactiveSla = "flex-1 sm:flex-none whitespace-nowrap px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm transition-all shadow-sm bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 text-center";
+                const activeProg = "flex-1 sm:flex-none whitespace-nowrap px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm transition-all shadow-sm bg-rose-500 text-white text-center flex items-center justify-center gap-2";
+                const inactiveProg = "flex-1 sm:flex-none whitespace-nowrap px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm transition-all shadow-sm bg-white text-slate-600 border border-slate-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-center flex items-center justify-center gap-2";
 
                 btn3.className = inactiveSla; btnP.className = inactiveProg;
 
@@ -580,9 +573,6 @@
             });
         }
 
-        /* ==========================================================
-           TAB SLA 3 & SLA 4
-        ========================================================== */
         function setDefaultSlaDates() {
             const dates = [...new Set(rawData.map(row => row['Tanggal']).filter(Boolean))].sort();
             document.getElementById('startDate').value = dates.length ? dates[0] : '';
@@ -629,11 +619,8 @@
 
             renderSlaKpi(filtered);
             renderTrenChart(filtered);
-            
-            // Perbaikan Logika: Kirim 'filtered' agar hanya merender sesuai filter region (Drill-down ke KP)
             renderRegionChart(filtered, selectedRegion);
             
-            // SIMPAN DATA TERAKHIR UNTUK FITUR KLIK SORTING TABEL
             lastFilteredData = filtered; 
             renderLeaderboard(filtered);
         }
@@ -687,8 +674,9 @@
                 type: 'line',
                 data: { labels, datasets: [{ data: keys.map(k => map[k]), borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,0.1)', borderWidth: 2, fill: true, tension: 0.3 }] },
                 options: {
+                    responsive: true,
                     maintainAspectRatio: false,
-                    interaction: { mode: 'index', intersect: false }, // TOOLTIP UX IMPROVEMENT
+                    interaction: { mode: 'index', intersect: false },
                     plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => ' ' + formatRupiah(ctx.parsed.y) } } },
                     scales: { y: { beginAtZero: true, ticks: { callback: (v) => formatCompact(v) } }, x: { ticks: { maxRotation: 45, minRotation: 45 } } }
                 }
@@ -698,35 +686,22 @@
         function renderRegionChart(rows, selectedRegion) {
             if (regionChartInst) { regionChartInst.destroy(); regionChartInst = null; }
 
-            // Cek apakah filter sedang memilih "ALL" (Semua Region) atau nama Region tertentu
             const isAllRegion = (String(selectedRegion || 'ALL').toUpperCase() === 'ALL');
             const map = {};
 
             rows.forEach(r => {
-                // ==========================================
-                // FITUR DRILL-DOWN AKTIF:
-                // Jika "ALL", kelompokkan berdasarkan Region. 
-                // Jika pilih Region spesifik, kelompokkan berdasarkan KP.
-                // ==========================================
-                const groupKey = isAllRegion 
-                    ? (r['Region'] || '-') 
-                    : (r['KP'] || '-');
-                    
+                const groupKey = isAllRegion ? (r['Region'] || '-') : (r['KP'] || '-');
                 map[groupKey] = (map[groupKey] || 0) + Number(r['Rupiah'] || 0);
             });
 
             const sorted = Object.entries(map).sort((a, b) => b[1] - a[1]);
+            document.getElementById('regionChartHost').style.height = Math.max(300, sorted.length * 28) + 'px';
 
-            // Tinggi chart menyesuaikan jumlah data secara otomatis
-            document.getElementById('regionChartHost').style.height = Math.max(320, sorted.length * 30) + 'px';
-
-            // Ubah judul kartu secara dinamis
             const titleEl = document.getElementById('regionChartTitle');
             if (titleEl) {
                 titleEl.innerText = isAllRegion ? "🏆 Top Kinerja Region" : `🏆 Top Kinerja KP - Region ${selectedRegion}`;
             }
 
-            // Ubah warna bar grafik: Ungu untuk Region, Hijau untuk KP
             const colors = sorted.map(() => isAllRegion ? '#6366f1' : '#10b981');
 
             regionChartInst = new Chart(document.getElementById('regionChart'), {
@@ -737,11 +712,9 @@
                 },
                 options: {
                     indexAxis: 'y',
+                    responsive: true,
                     maintainAspectRatio: false,
-                    interaction: {
-                        mode: 'y', // Memastikan tooltip tidak meleset saat baris disentuh
-                        intersect: false
-                    },
+                    interaction: { mode: 'y', intersect: false },
                     plugins: { 
                         legend: { display: false }, 
                         tooltip: { callbacks: { label: (ctx) => ' ' + formatRupiah(ctx.parsed.x) } } 
@@ -754,7 +727,6 @@
             });
         }
         
-        // FUNGSI SORTING LEADERBOARD
         function sortLeaderboard(col) {
             if (lbSortCol === col) {
                 lbSortAsc = !lbSortAsc; 
@@ -765,7 +737,6 @@
             renderLeaderboard(lastFilteredData);
         }
 
-        // FUNGSI RENDER LEADERBOARD
         function renderLeaderboard(dataRows) {
             const tbody = document.getElementById('leaderboardBody');
             const theadRow = document.getElementById('leaderboardHeadRow');
@@ -822,46 +793,24 @@
             const actualTargetRp = baseTargetRp * monthMultiplier;
             
             const getSortIcon = (colName) => {
-                if (activeSort !== colName) {
-                    return `<svg class="w-3.5 h-3.5 ml-1.5 text-slate-400 group-hover:text-slate-700 transition-colors duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>`;
-                }
-                return lbSortAsc 
-                    ? `<svg class="w-4 h-4 ml-1.5 text-indigo-600 drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 15l7-7 7 7" /></svg>` 
-                    : `<svg class="w-4 h-4 ml-1.5 text-indigo-600 drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7" /></svg>`;
-            };
-
-            const getHeaderClass = (colName, baseClass) => {
-                const isActive = activeSort === colName;
-                const activeStyle = isActive ? 'bg-indigo-50/60 text-indigo-700 shadow-[inset_0_-2px_0_#4f46e5]' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700';
-                return `group cursor-pointer transition-all duration-200 py-3 px-3 text-[11px] sm:text-xs font-bold uppercase select-none ${baseClass} ${activeStyle}`;
+                if (activeSort !== colName) return '↕';
+                return lbSortAsc ? '▲' : '▼';
             };
 
             if (theadRow) {
                 if (isModeEfektifitas) {
                     theadRow.innerHTML = `
-                        <th class="py-3 px-3 text-[11px] sm:text-xs font-bold text-slate-500 uppercase w-3/12 border-b border-slate-200">Agen & Region</th>
-                        <th onclick="sortLeaderboard('outbound')" class="${getHeaderClass('outbound', 'w-2/12 border-l border-b border-slate-200')}" title="Urutkan Outbound">
-                            <div class="flex items-center justify-center">Outbound ${getSortIcon('outbound')}</div>
-                        </th>
-                        <th onclick="sortLeaderboard('rp')" class="${getHeaderClass('rp', 'w-3/12 border-l border-b border-slate-200')}" title="Urutkan Rp & Pelanggan">
-                            <div class="flex items-center justify-center">Rp & Plg ${getSortIcon('rp')}</div>
-                        </th>
-                        <th onclick="sortLeaderboard('capaian')" class="${getHeaderClass('capaian', 'w-2/12 border-l border-b border-slate-200')}" title="Urutkan Pencapaian">
-                            <div class="flex items-center justify-center">Pencapaian ${getSortIcon('capaian')}</div>
-                        </th>
-                        <th onclick="sortLeaderboard('efektifitas')" class="${getHeaderClass('efektifitas', 'w-2/12 border-l border-b border-slate-200')}" title="Urutkan Efektifitas">
-                            <div class="flex items-center justify-center">Efektifitas ${getSortIcon('efektifitas')}</div>
-                        </th>
+                        <th class="py-3 px-3 text-[10px] sm:text-xs font-bold text-slate-500 uppercase w-3/12 border-b border-slate-200">Agen & Region</th>
+                        <th onclick="sortLeaderboard('outbound')" class="cursor-pointer hover:bg-slate-100 py-3 px-3 text-[10px] sm:text-xs font-bold text-slate-500 uppercase text-center w-2/12 border-l border-b border-slate-200">Outbound ${getSortIcon('outbound')}</th>
+                        <th onclick="sortLeaderboard('rp')" class="cursor-pointer hover:bg-slate-100 py-3 px-3 text-[10px] sm:text-xs font-bold text-slate-500 uppercase text-center w-3/12 border-l border-b border-slate-200">Rp & Plg ${getSortIcon('rp')}</th>
+                        <th onclick="sortLeaderboard('capaian')" class="cursor-pointer hover:bg-slate-100 py-3 px-3 text-[10px] sm:text-xs font-bold text-slate-500 uppercase text-center w-2/12 border-l border-b border-slate-200">Capaian ${getSortIcon('capaian')}</th>
+                        <th onclick="sortLeaderboard('efektifitas')" class="cursor-pointer hover:bg-slate-100 py-3 px-3 text-[10px] sm:text-xs font-bold text-slate-500 uppercase text-center w-2/12 border-l border-b border-slate-200">Efektifitas ${getSortIcon('efektifitas')}</th>
                     `;
                 } else {
                     theadRow.innerHTML = `
-                        <th class="py-3 px-3 text-[11px] sm:text-xs font-bold text-slate-500 uppercase w-5/12 border-b border-slate-200">Agen & Region</th>
-                        <th onclick="sortLeaderboard('rp')" class="${getHeaderClass('rp', 'w-4/12 border-l border-b border-slate-200')}" title="Urutkan Rp & Pelanggan">
-                            <div class="flex items-center justify-center">Rp & Pelanggan ${getSortIcon('rp')}</div>
-                        </th>
-                        <th onclick="sortLeaderboard('capaian')" class="${getHeaderClass('capaian', 'w-3/12 border-l border-b border-slate-200')}" title="Urutkan Pencapaian">
-                            <div class="flex items-center justify-center">Capaian ${getSortIcon('capaian')}</div>
-                        </th>
+                        <th class="py-3 px-3 text-[10px] sm:text-xs font-bold text-slate-500 uppercase w-5/12 border-b border-slate-200">Agen & Region</th>
+                        <th onclick="sortLeaderboard('rp')" class="cursor-pointer hover:bg-slate-100 py-3 px-3 text-[10px] sm:text-xs font-bold text-slate-500 uppercase text-center w-4/12 border-l border-b border-slate-200">Rp & Pelanggan ${getSortIcon('rp')}</th>
+                        <th onclick="sortLeaderboard('capaian')" class="cursor-pointer hover:bg-slate-100 py-3 px-3 text-[10px] sm:text-xs font-bold text-slate-500 uppercase text-right w-3/12 border-l border-b border-slate-200">Capaian ${getSortIcon('capaian')}</th>
                     `;
                 }
             }
@@ -870,9 +819,9 @@
 
             const html = board.map((row, index) => {
                 const medal = (isMedalEligible && index === 0) ? '🏆' : 
-                              (isMedalEligible && index === 1) ? '🥈' : 
-                              (isMedalEligible && index === 2) ? '🥉' : 
-                              `<span class="text-slate-400 font-semibold w-6 inline-block text-center">${index + 1}</span>`;
+                            (isMedalEligible && index === 1) ? '🥈' : 
+                            (isMedalEligible && index === 2) ? '🥉' : 
+                            `<span class="text-slate-400 font-semibold w-6 inline-block text-center">${index + 1}</span>`;
                 
                 if (isModeEfektifitas || !theadRow) {
                     const pctCapaian = actualTargetRp > 0 ? (row.rp / actualTargetRp) * 100 : 0;
@@ -881,56 +830,48 @@
                     const pctEfektifitas = row.outbound > 0 ? (row.plg / row.outbound) * 100 : 0;
                     const badgeEfektifitas = pctEfektifitas >= 40 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700";
 
-                    const renderEfektifitas = row.outbound > 0 
-                        ? `<div class="inline-block px-2 py-1 rounded-md text-xs font-bold shadow-sm ${badgeEfektifitas}">${pctEfektifitas.toFixed(1)}%</div>`
-                        : `<span class="text-slate-300 font-medium">-</span>`;
-
-                    const renderOutboundTeks = row.outbound > 0 
-                        ? `<div class="text-[11px] sm:text-sm font-bold text-slate-600">${row.outbound.toLocaleString('id-ID')}</div><div class="text-[11px] text-slate-400 font-medium mt-0.5">Panggilan</div>`
-                        : `<span class="text-slate-300 font-medium">-</span>`;
-
-                    const getCellBg = (colName) => activeSort === colName ? 'bg-indigo-50/20' : '';
+                    const renderEfektifitas = row.outbound > 0 ? `<div class="inline-block px-2 py-1 rounded-md text-[11px] sm:text-xs font-bold shadow-sm ${badgeEfektifitas}">${pctEfektifitas.toFixed(1)}%</div>` : `-`;
+                    const renderOutboundTeks = row.outbound > 0 ? `<div class="font-bold text-slate-600">${row.outbound.toLocaleString('id-ID')}</div>` : `-`;
 
                     return `<tr class="animate-row hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0" style="animation-delay: ${Math.min(index, 20) * 30}ms;">
-                        <td class="py-2 px-3 w-3/12">
-                            <div class="flex items-start space-x-1 sm:space-x-2">
-                                <span class="text-sm sm:text-lg flex-shrink-0 mt-0.5">${medal}</span>
-                                <div class="pt-1">
-                                    <div class="font-bold text-slate-700 leading-tight text-[11px] sm:text-sm">${escapeHtml(row.agent)}</div>
-                                    <div class="text-[11px] text-slate-400 mt-0.5 line-clamp-1">${escapeHtml(row.regions)}</div>
+                        <td class="py-2.5 px-3">
+                            <div class="flex items-start space-x-2">
+                                <span class="text-sm sm:text-base flex-shrink-0">${medal}</span>
+                                <div>
+                                    <div class="font-bold text-slate-700 leading-tight text-xs sm:text-sm">${escapeHtml(row.agent)}</div>
+                                    <div class="text-[10px] sm:text-[11px] text-slate-400 mt-0.5">${escapeHtml(row.regions)}</div>
                                 </div>
                             </div>
                         </td>
-                        <td class="py-2 px-3 w-2/12 text-center align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('outbound')}">${renderOutboundTeks}</td>
-                        <td class="py-2 px-3 w-3/12 text-center align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('rp')}">
-                            <div class="text-[11px] sm:text-sm font-semibold text-slate-700">${formatRupiah(row.rp)}</div>
-                            <div class="text-[11px] text-slate-400 font-medium mt-0.5">${row.plg.toLocaleString('id-ID')} plg</div>
+                        <td class="py-2.5 px-3 text-center align-middle whitespace-nowrap border-l border-slate-50">${renderOutboundTeks}</td>
+                        <td class="py-2.5 px-3 text-center align-middle whitespace-nowrap border-l border-slate-50">
+                            <div class="font-semibold text-slate-700">${formatRupiah(row.rp)}</div>
+                            <div class="text-[10px] text-slate-400 mt-0.5">${row.plg.toLocaleString('id-ID')} plg</div>
                         </td>
-                        <td class="py-2 px-3 w-2/12 text-center align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('capaian')}">
-                            <div class="inline-block px-2 py-1 rounded-md text-xs font-bold shadow-sm ${badgeCapaian}">${pctCapaian.toFixed(1)}%</div>
+                        <td class="py-2.5 px-3 text-center align-middle whitespace-nowrap border-l border-slate-50">
+                            <div class="inline-block px-2 py-1 rounded-md text-[11px] sm:text-xs font-bold shadow-sm ${badgeCapaian}">${pctCapaian.toFixed(1)}%</div>
                         </td>
-                        <td class="py-2 px-3 w-2/12 text-center align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('efektifitas')}">${renderEfektifitas}</td>
+                        <td class="py-2.5 px-3 text-center align-middle whitespace-nowrap border-l border-slate-50">${renderEfektifitas}</td>
                     </tr>`;
                 } else {
                     const pct = actualTargetRp > 0 ? (row.rp / actualTargetRp) * 100 : 0;
                     const badgeClass = pct >= 100 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700";
-                    const getCellBg = (colName) => activeSort === colName ? 'bg-indigo-50/20' : '';
 
                     return `<tr class="animate-row hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0" style="animation-delay: ${Math.min(index, 20) * 30}ms;">
-                        <td class="py-2 px-3 w-5/12">
-                            <div class="flex items-start space-x-2 sm:space-x-3">
-                                <span class="text-base sm:text-lg flex-shrink-0 mt-0.5">${medal}</span>
-                                <div class="pt-1">
-                                    <div class="font-bold text-slate-700 leading-tight text-[11px] sm:text-sm">${escapeHtml(row.agent)}</div>
-                                    <div class="text-[11px] text-slate-400 mt-0.5">${escapeHtml(row.regions)}</div>
+                        <td class="py-2.5 px-3">
+                            <div class="flex items-start space-x-2">
+                                <span class="text-sm sm:text-base flex-shrink-0">${medal}</span>
+                                <div>
+                                    <div class="font-bold text-slate-700 leading-tight text-xs sm:text-sm">${escapeHtml(row.agent)}</div>
+                                    <div class="text-[10px] sm:text-[11px] text-slate-400 mt-0.5">${escapeHtml(row.regions)}</div>
                                 </div>
                             </div>
                         </td>
-                        <td class="py-2 px-3 w-4/12 text-center align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('rp')}">
-                            <div class="text-[11px] sm:text-sm font-semibold text-slate-700">${formatRupiah(row.rp)}</div>
-                            <div class="text-[11px] text-slate-400 font-medium mt-0.5">${row.plg.toLocaleString('id-ID')} pelanggan</div>
+                        <td class="py-2.5 px-3 text-center align-middle whitespace-nowrap border-l border-slate-50">
+                            <div class="font-semibold text-slate-700">${formatRupiah(row.rp)}</div>
+                            <div class="text-[10px] text-slate-400 mt-0.5">${row.plg.toLocaleString('id-ID')} pelanggan</div>
                         </td>
-                        <td class="py-2 px-3 w-3/12 text-right align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('capaian')}">
+                        <td class="py-2.5 px-3 text-right align-middle whitespace-nowrap border-l border-slate-50">
                             <div class="inline-block px-2 py-1 rounded-md text-xs sm:text-sm font-bold shadow-sm ${badgeClass}">${pct.toFixed(1)}%</div>
                         </td>
                     </tr>`;
@@ -941,9 +882,6 @@
             tbody.innerHTML = html || `<tr><td colspan="${colSpan}" class="p-4 text-center text-slate-400">Belum ada data performa agen</td></tr>`;
         }
 
-        /* ==========================================================
-           TAB PROGRES TAGIHAN
-        ========================================================== */
         const isLunasRow = (row) => String(row['Status'] || '').trim().toUpperCase() === 'LUNAS';
         const hasPayDate = (row) => { const t = row['Tanggal_Bayar_Saja']; return !!t && t !== 'Belum Bayar'; };
         const inRange = (tgl, startStr, endStr) => !(startStr && tgl < startStr) && !(endStr && tgl > endStr);
@@ -966,8 +904,8 @@
 
         function setBillingType(type, animate = true, forceLatest = false) {
             currentBillingType = type;
-            const actClass = "px-5 py-2.5 rounded-lg bg-white shadow-sm text-rose-600 transition-all flex-shrink-0 sm:flex-none text-center whitespace-nowrap";
-            const inactClass = "px-5 py-2.5 rounded-lg text-slate-500 hover:text-slate-700 transition-all flex-shrink-0 sm:flex-none text-center whitespace-nowrap";
+            const actClass = "flex-1 sm:flex-none px-4 sm:px-5 py-2 rounded-lg bg-white shadow-sm text-rose-600 transition-all text-center whitespace-nowrap";
+            const inactClass = "flex-1 sm:flex-none px-4 sm:px-5 py-2 rounded-lg text-slate-500 hover:text-slate-700 transition-all text-center whitespace-nowrap";
 
             document.getElementById('btnPrepaid').className = type === 'prepaid' ? actClass : inactClass;
             document.getElementById('btnPostpaid').className = type === 'postpaid' ? actClass.replace('text-rose-600', 'text-indigo-600') : inactClass;
@@ -1094,19 +1032,17 @@
             
             document.getElementById('progBarFill').style.width = Math.min(pctCapaian, 100).toFixed(1) + "%";
             const barColor = pctCapaian >= 100 ? 'bg-emerald-500' : 'bg-rose-500';
-            document.getElementById('progBarFill').className = `h-5 rounded-full transition-all duration-1000 ease-out ${barColor}`;
+            document.getElementById('progBarFill').className = `h-full rounded-full transition-all duration-1000 ease-out ${barColor}`;
             const textColor = pctCapaian >= 100 ? 'text-emerald-600' : 'text-rose-600';
             document.getElementById('progBarText').innerText = pctCapaian.toFixed(1) + "%";
-            document.getElementById('progBarText').className = `text-2xl font-black ${textColor}`;
+            document.getElementById('progBarText').className = `text-xl sm:text-2xl font-black ${textColor}`;
 
-            // MoM Comparison (Sudah menggunakan logika Dinamis Pengecekan Periode Terbaru)
             const momBadge = document.getElementById('momBadge'), momSummaryCard = document.getElementById('momSummaryCard');
             if (selectedPeriod !== 'ALL') {
                 const currDate = parsePeriodeToDate(selectedPeriod);
                 currDate.setMonth(currDate.getMonth() - 1);
                 const prevPeriod = `${bulanNames[currDate.getMonth()]} ${currDate.getFullYear()}`;
 
-                // PERBAIKAN 1: Deteksi periode terbaru secara dinamis (bukan patokan bulan kalender)
                 const typeFilteredData = allData.progres.filter(rowMatchesBillingType);
                 const allPeriodsForType = [...new Set(typeFilteredData.map(r => r['Periode']).filter(Boolean))];
                 allPeriodsForType.sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
@@ -1114,26 +1050,17 @@
                 const isLatestPeriod = (String(selectedPeriod).trim() === String(latestPeriod).trim());
 
                 let prevStartStr = "", prevEndStr = "";
-
                 if (startStr || endStr) {
                     prevStartStr = startStr ? shiftMonthBack(startStr) : "";
                     prevEndStr = endStr ? shiftMonthBack(endStr) : "";
                 } else if (isLatestPeriod) {
-                    // PERBAIKAN 2: Ambil rentang tanggal aktual (min dan max) dari data yang sudah masuk
-                    let maxCurrentDate = "";
-                    let minCurrentDate = "";
+                    let maxCurrentDate = "", minCurrentDate = "";
                     boardBaseData.forEach(r => {
                         if (isLunasRow(r) && hasPayDate(r)) {
-                            if (!maxCurrentDate || r['Tanggal_Bayar_Saja'] > maxCurrentDate) {
-                                maxCurrentDate = r['Tanggal_Bayar_Saja'];
-                            }
-                            if (!minCurrentDate || r['Tanggal_Bayar_Saja'] < minCurrentDate) {
-                                minCurrentDate = r['Tanggal_Bayar_Saja'];
-                            }
+                            if (!maxCurrentDate || r['Tanggal_Bayar_Saja'] > maxCurrentDate) maxCurrentDate = r['Tanggal_Bayar_Saja'];
+                            if (!minCurrentDate || r['Tanggal_Bayar_Saja'] < minCurrentDate) minCurrentDate = r['Tanggal_Bayar_Saja'];
                         }
                     });
-                    
-                    // Mundurkan tanggal aktual 1 bulan ke belakang untuk Apple-to-Apple
                     if (maxCurrentDate && minCurrentDate) {
                         prevStartStr = shiftMonthBack(minCurrentDate);
                         prevEndStr = shiftMonthBack(maxCurrentDate);
@@ -1154,7 +1081,6 @@
                 momSummaryCard.classList.remove('hidden');
 
                 let subText = "";
-                
                 if (startStr || endStr) {
                     const sId = prevStartStr ? prevStartStr.split('-').reverse().join('/') : 'Awal';
                     const eId = prevEndStr ? prevEndStr.split('-').reverse().join('/') : 'Akhir';
@@ -1174,17 +1100,16 @@
 
                 const plgBadgeEl = document.getElementById('momPlgBadge');
                 plgBadgeEl.innerText = `${diffPlg >= 0 ? '+' : ''}${diffPlg.toLocaleString('id-ID')} (${pctPlg.toFixed(1)}%)`;
-                plgBadgeEl.className = `block text-[11px] font-semibold mt-0.5 ${diffPlg >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+                plgBadgeEl.className = `block text-[10px] sm:text-[11px] font-semibold mt-0.5 ${diffPlg >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
 
                 const rpBadgeEl = document.getElementById('momRpBadge');
                 rpBadgeEl.innerText = `${diffRp >= 0 ? '+' : ''}${formatRupiah(diffRp)} (${pctRp.toFixed(1)}%)`;
-                rpBadgeEl.className = `block text-[11px] font-semibold mt-0.5 ${diffRp >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+                rpBadgeEl.className = `block text-[10px] sm:text-[11px] font-semibold mt-0.5 ${diffRp >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
             } else {
                 momBadge.className = 'hidden';
                 momSummaryCard.classList.add('hidden');
             }
 
-            // Region Leaderboard
             const boardData = Object.keys(lbRegionStats)
                 .map(reg => { const s = lbRegionStats[reg]; return { region: reg, ...s, pct: s.targetPlg > 0 ? (s.lunasPlg / s.targetPlg) * 100 : 0 }; })
                 .sort((a, b) => b.pct - a.pct);
@@ -1198,14 +1123,14 @@
                 const badgeClass = row.pct >= 100 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700";
                 
                 tbodyHtml += `<tr class="animate-row hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0 ${rowHighlight}" style="animation-delay: ${Math.min(index, 20) * 30}ms;">
-                        <td class="py-2 px-3 w-5/12">
-                            <div class="flex items-start space-x-2 sm:space-x-3">
-                                <span class="text-base sm:text-lg flex-shrink-0 mt-0.5">${medal}</span>
-                                <div class="font-bold text-slate-700 leading-tight text-[11px] sm:text-sm pt-1">${escapeHtml(row.region)}</div>
+                        <td class="py-2.5 px-3 w-5/12">
+                            <div class="flex items-start space-x-2">
+                                <span class="text-sm sm:text-base flex-shrink-0">${medal}</span>
+                                <div class="font-bold text-slate-700 leading-tight text-xs sm:text-sm pt-0.5">${escapeHtml(row.region)}</div>
                             </div>
                         </td>
-                        <td class="py-2 px-3 w-4/12 text-center align-middle whitespace-nowrap"><div class="text-[11px] sm:text-sm font-semibold text-slate-700">${row.lunasPlg.toLocaleString('id-ID')}</div><div class="text-[11px] text-slate-400 font-medium mt-0.5">dari ${row.targetPlg.toLocaleString('id-ID')}</div></td>
-                        <td class="py-2 px-3 w-3/12 text-right align-middle whitespace-nowrap"><div class="inline-block px-2 py-1 rounded-md text-xs sm:text-sm font-bold shadow-sm ${badgeClass}">${row.pct.toFixed(1)}%</div></td>
+                        <td class="py-2.5 px-3 w-4/12 text-center align-middle whitespace-nowrap"><div class="font-semibold text-slate-700">${row.lunasPlg.toLocaleString('id-ID')}</div><div class="text-[10px] text-slate-400 mt-0.5">dari ${row.targetPlg.toLocaleString('id-ID')}</div></td>
+                        <td class="py-2.5 px-3 w-3/12 text-right align-middle whitespace-nowrap"><div class="inline-block px-2 py-1 rounded-md text-xs font-bold shadow-sm ${badgeClass}">${row.pct.toFixed(1)}%</div></td>
                     </tr>`;
             });
             document.getElementById('progresBody').innerHTML = tbodyHtml || '<tr><td colspan="3" class="p-4 text-center text-slate-400">Belum ada data untuk kriteria ini</td></tr>';
@@ -1262,8 +1187,9 @@
                 type: 'line',
                 data: { labels: chartLabels, datasets: [{ data: chartValues, borderColor: lineCol, backgroundColor: bgCol, borderWidth: 2, fill: true, tension: 0.3 }] },
                 options: {
+                    responsive: true,
                     maintainAspectRatio: false,
-                    interaction: { mode: 'index', intersect: false }, // TOOLTIP UX IMPROVEMENT
+                    interaction: { mode: 'index', intersect: false },
                     plugins: { legend: { display: false }, tooltip: { callbacks: { label: (context) => ' ' + context.parsed.y.toLocaleString('id-ID') + ' Pelanggan' } } },
                     scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { ticks: { maxRotation: 45, minRotation: 45 } } }
                 }
