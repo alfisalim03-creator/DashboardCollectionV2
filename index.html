@@ -1302,3 +1302,151 @@
     </script>
 </body>
 </html>
+
+<!-- ===== UI UPGRADE: tempel di BARIS PALING BAWAH file dashboard (setelah </html>) ===== -->
+<style id="ui-upgrade">
+body{font-variant-numeric:tabular-nums}
+.text-\[11px\]{font-size:12px!important;line-height:1.35}
+.text-slate-400{color:#64748b!important}
+#momSummaryCard .text-slate-400{color:#cbd5e1!important}
+:is(button,select,input):focus-visible{outline:2px solid #4f46e5!important;outline-offset:2px}
+
+/* Palet: indigo = navigasi & aksi, merah/hijau/amber hanya untuk status */
+.border-l-4{border-left-width:1px!important;border-left-color:#e2e8f0!important}
+#btnProgres.bg-rose-500{background:#4f46e5!important}
+#btnProgres:not(.bg-rose-500):hover{background:#eef2ff!important;color:#4f46e5!important;border-color:#c7d2fe!important}
+#btnPrepaid.text-rose-600,#btnPostpaid.text-indigo-600,#btnAllType.text-sky-600{color:#4f46e5!important}
+.focus\:border-rose-500:focus,.focus-within\:border-rose-500:focus-within{border-color:#6366f1!important}
+.focus-within\:ring-rose-500:focus-within{--tw-ring-color:#6366f1!important}
+button[onclick^="reset"]{background:#fff!important;color:#475569!important;border-color:#e2e8f0!important}
+button[onclick^="reset"]:hover{background:#f8fafc!important}
+
+/* Tabel: nomor peringkat seragam, badge status tidak hanya bergantung warna */
+td .w-6.inline-block{display:inline-flex!important;align-items:center;justify-content:center;height:1.5rem;border-radius:9999px;background:#f1f5f9;font-size:12px!important}
+.rounded-md.bg-emerald-100::before{content:"✓ "}
+.rounded-md.bg-rose-100::before{content:"▼ "}
+
+/* Interaksi lebih cepat + skeleton */
+#dashboardWrapper{transition-duration:.15s!important}
+.animate-row{animation-duration:.25s!important;animation-delay:0s!important}
+#loadingOverlay{display:none!important}
+@keyframes ui-shimmer{to{background-position:-200% 0}}
+@keyframes ui-spin{to{transform:rotate(360deg)}}
+#dashboardWrapper.ui-loading :is(#totalRupiah,#totalTiket,#teleRev,#retRev,#winRev,#progTargetRp,#progLunasRp,#progSisaRp,.chart-container){color:transparent!important;border-radius:8px;background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 37%,#f1f5f9 63%);background-size:200% 100%;animation:ui-shimmer 1.2s linear infinite}
+#dashboardWrapper.ui-loading canvas{visibility:hidden}
+#dashboardWrapper.ui-loading tbody{opacity:.35}
+button:disabled{opacity:.6;cursor:wait}
+.ui-busy svg{animation:ui-spin 1s linear infinite}
+@media (prefers-reduced-motion:reduce){#dashboardWrapper.ui-loading *,.ui-busy svg{animation:none!important}}
+
+/* Banner error */
+#uiBanner{display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.75rem 1rem;border:1px solid #fecdd3;background:#fff1f2;color:#be123c;border-radius:.75rem;font-size:.875rem}
+#uiBanner[hidden]{display:none}
+#uiBanner button{flex-shrink:0;padding:.375rem .75rem;border:1px solid #fecdd3;border-radius:.5rem;background:#fff;font-weight:600;font-size:12px;color:#be123c}
+</style>
+<script id="ui-upgrade-js">
+function uiUpgradeRun(){
+const $=id=>document.getElementById(id);
+if(!$('dashboardWrapper')||window.__uiUpgraded)return;
+window.__uiUpgraded=1;
+
+/* 1. Emoji -> ikon SVG (otomatis, termasuk teks yang diisi JS) */
+const S=(d,c='currentColor')=>`<svg style="display:inline-block;vertical-align:-.2em;width:1.1em;height:1.1em;margin-right:.35em;color:${c}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const D=c=>`<span style="display:inline-block;width:.5rem;height:.5rem;border-radius:9999px;background:${c}"></span>`;
+const R=(n,bg,fg)=>`<span style="display:inline-flex;align-items:center;justify-content:center;width:1.5rem;height:1.5rem;border-radius:9999px;font-size:12px;font-weight:700;background:${bg};color:${fg}">${n}</span>`;
+const IC={
+  trend:'<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>',
+  trophy:'<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0V4zM17 5h3v2a3 3 0 01-3 3M7 5H4v2a3 3 0 003 3"/>',
+  cal:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  sync:'<path d="M21 12a9 9 0 11-3-6.7L21 8M21 3v5h-5"/>',
+  chart:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'
+};
+const M={
+  '📈':()=>S(IC.trend,'#4f46e5'),
+  '🏆':td=>td?R(1,'#fef3c7','#b45309'):S(IC.trophy,'#4f46e5'),
+  '🥈':()=>R(2,'#e2e8f0','#334155'),
+  '🥉':()=>R(3,'#ffedd5','#c2410c'),
+  '📅':()=>S(IC.cal),'🔄':()=>S(IC.sync),'📊':()=>S(IC.chart),
+  '⚠️':()=>D('#f59e0b'),'⚠':()=>D('#f59e0b'),'❌':()=>D('#fb7185'),
+  '🛑':()=>D('#fb7185'),'⚪':()=>D('#94a3b8'),'🕒':()=>D('#34d399')
+};
+const RE=/(📈|🏆|🥈|🥉|📅|🔄|📊|⚠️|⚠|❌|🛑|⚪|🕒)\s?/;
+function sw(n){
+  const p=n.parentNode,v=n.nodeValue;
+  if(!p||/^(SCRIPT|STYLE|OPTION|TEXTAREA)$/.test(p.nodeName))return;
+  if(p.closest&&p.closest('th')){ // samakan istilah header
+    if(v.trim()==='Pencapaian')n.nodeValue='Capaian ';
+    else if(v.includes('Rp & Plg'))n.nodeValue=v.replace('Rp & Plg','Rp & Pelanggan');
+    return;
+  }
+  if(!RE.test(v))return;
+  const td=!!(p.closest&&p.closest('td')),f=document.createDocumentFragment();
+  v.split(RE).forEach((s,i)=>{
+    if(i%2){const t=document.createElement('template');t.innerHTML=M[s](td);f.append(t.content);}
+    else if(s)f.append(s);
+  });
+  n.replaceWith(f);
+}
+function scan(r){
+  if(r.nodeType===3)return sw(r);
+  if(r.nodeType!==1)return;
+  const w=document.createTreeWalker(r,4),a=[];let n;
+  while((n=w.nextNode()))a.push(n);
+  a.forEach(sw);
+}
+scan(document.body);
+new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(scan))).observe(document.body,{childList:true,subtree:true});
+
+/* 2. Loading: skeleton saat load awal, spinner di tombol saat sinkron */
+const wr=$('dashboardWrapper'),sb=document.querySelector('button[onclick^="forceRefreshData"]');
+sb.insertAdjacentHTML('afterbegin',S(IC.sync));
+window.showLoading=t=>{bn.hidden=true;if(/^Memuat/.test(t))wr.classList.add('ui-loading');else{sb.disabled=true;sb.classList.add('ui-busy');}};
+window.hideLoading=()=>{wr.classList.remove('ui-loading');sb.disabled=false;sb.classList.remove('ui-busy');};
+
+/* 3. Error: banner inline + tombol "Coba lagi" menggantikan alert() */
+const bn=document.createElement('div');
+bn.id='uiBanner';bn.hidden=true;bn.setAttribute('role','alert');
+bn.innerHTML='<span id="uiBannerText"></span><button type="button" id="uiBannerRetry">Coba lagi</button>';
+$('slaContainer').before(bn);
+window.alert=m=>{
+  $('uiBannerText').textContent=m;
+  $('uiBannerRetry').onclick=()=>/menyinkronkan/i.test(m)?forceRefreshData():loadAllData();
+  bn.hidden=false;
+};
+
+/* 4. Interaksi: filter langsung update, transisi tab 150ms */
+const syncAria=()=>{
+  [['btnSla3','sla3'],['btnProgres','progres']].forEach(([i,v])=>$(i).setAttribute('aria-selected',currentTab===v));
+  [['btnPrepaid','prepaid'],['btnPostpaid','postpaid'],['btnAllType','all']].forEach(([i,v])=>$(i).setAttribute('aria-selected',currentBillingType===v));
+};
+window.triggerActionAnimation=cb=>{
+  wr.classList.add('is-animating');
+  setTimeout(()=>{cb();syncAria();setTimeout(()=>wr.classList.remove('is-animating'),30);},150);
+};
+window.applyFilter=()=>applyFilterWithoutAnimation();
+
+/* 5. Aksesibilitas */
+[['filterPeriodeSla','Filter periode'],['filterRegion','Filter region'],['startDate','Tanggal mulai'],['endDate','Tanggal akhir'],
+ ['filterPeriode','Filter periode'],['progFilterRegion','Filter region'],['progStartDate','Tanggal lunas mulai'],['progEndDate','Tanggal lunas akhir']]
+ .forEach(([i,l])=>{const e=$(i);if(e)e.setAttribute('aria-label',l);});
+[['trenChart','Grafik tren pencapaian'],['regionChart','Grafik kinerja region'],['progresTrenChart','Grafik tren pelanggan lunas harian']]
+ .forEach(([i,l])=>{const c=$(i);if(c){c.setAttribute('role','img');c.setAttribute('aria-label',l);}});
+['btnSla3','btnProgres','btnPrepaid','btnPostpaid','btnAllType'].forEach(i=>$(i).setAttribute('role','tab'));
+$('btnSla3').parentNode.setAttribute('role','tablist');
+$('btnPrepaid').parentNode.setAttribute('role','tablist');
+syncAria();
+
+/* 6. Teks: istilah konsisten + legenda ambang warna */
+document.querySelectorAll('p').forEach(p=>{if(p.children.length===0)p.textContent=p.textContent.replace('Total Keseluruhan ','Total ');});
+$('leaderboardTitle').style.marginBottom='.25rem';
+$('leaderboardTitle').insertAdjacentHTML('afterend','<p style="font-size:12px;color:#64748b;margin:0 0 .75rem">Hijau: capaian ≥ 100% target dan efektifitas ≥ 40%. Merah: di bawahnya.</p>');
+
+/* 7. Grafik: warna merek tunggal, label sumbu X tidak miring */
+if(window.Chart)Chart.register({id:'uiBrand',beforeUpdate(c){
+  const k=c.options.scales&&c.options.scales.x&&c.options.scales.x.ticks;
+  if(c.config.type==='line'&&k){k.maxRotation=0;k.minRotation=0;k.autoSkip=true;}
+  if(c.canvas.id==='progresTrenChart'){const d=c.data.datasets[0];d.borderColor='#4f46e5';d.backgroundColor='rgba(79,70,229,.1)';}
+}});
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',uiUpgradeRun);else uiUpgradeRun();
+</script>
