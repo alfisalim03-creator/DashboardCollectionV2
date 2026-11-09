@@ -49,6 +49,7 @@
         </div>
     </div>
 
+    <!-- WRAPPER DIUBAH MENJADI W-FULL UNTUK LEBAR PENUH DI GOOGLE SITES -->
     <div id="dashboardWrapper" class="w-full mx-auto space-y-4 sm:space-y-6 px-2 sm:px-6">
 
         <!-- HEADER & BADGE WAKTU UPDATE -->
@@ -65,20 +66,6 @@
                     </span>
                 </div>
             </div>
-        </div>
-        
-        <!-- BANNER NOTIFIKASI UPDATE BARU (DI ATAS TOMBOL SINKRON DATA) -->
-        <div id="updateNotificationBanner" class="hidden bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 rounded-xl shadow-sm flex items-center justify-between gap-3 transition-all">
-            <div class="flex items-center gap-3">
-                <span class="flex h-3 w-3 relative">
-                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                  <span class="relative inline-flex rounded-full h-3 w-3 bg-rose-600"></span>
-                </span>
-                <div class="text-sm font-bold">
-                    Pembaruan Data Tersedia
-                </div>
-            </div>
-            <button onclick="hideUpdateBanner()" class="text-rose-400 hover:text-rose-600 font-bold text-sm px-2">✕</button>
         </div>
 
         <!-- TAB SWITCHER MAIN -->
@@ -215,7 +202,7 @@
                     </button>
                 </div>
                 <div class="flex flex-wrap items-center gap-2.5 pt-2 border-t border-slate-100">
-                    <select id="filterPeriode" onchange="applyProgresFilter()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-rose-500 bg-slate-50 font-semibold text-slate-700">
+                    <select id="filterPeriode" onchange="onPeriodChange()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-rose-500 bg-slate-50 font-semibold text-slate-700">
                         <option value="ALL">Semua Periode</option>
                     </select>
                     <select id="progFilterRegion" onchange="applyProgresFilter()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-rose-500 bg-slate-50 font-semibold text-slate-700">
@@ -347,8 +334,6 @@
     <script>
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxohEYzE3Th9LRITFZHlK4IAmsXN-byA88nTytdF2PQj2z8A82bicIJUOZliE1IDjo2WA/exec";
         
-        let lastKnownServerTime = null; // Tambahkan variabel untuk tracking waktu server
-
         Chart.defaults.scale.grid.color = '#f1f5f9'; 
         Chart.defaults.font.family = "'Inter', sans-serif"; 
         
@@ -361,6 +346,13 @@
         let lbSortCol = 'default';
         let lbSortAsc = false;
         let lastFilteredData = [];
+
+        // State filter independen per tipe tagihan
+        const filterState = {
+            prepaid: { periode: 'ALL', region: 'ALL', startDate: '', endDate: '' },
+            postpaid: { periode: 'ALL', region: 'ALL', startDate: '', endDate: '' },
+            all: { periode: 'ALL', region: 'ALL', startDate: '', endDate: '' }
+        };
 
         const bulanMap = { 'Januari': 1, 'Februari': 2, 'Maret': 3, 'April': 4, 'Mei': 5, 'Juni': 6, 'Juli': 7, 'Agustus': 8, 'September': 9, 'Oktober': 10, 'November': 11, 'Desember': 12 };
         const bulanNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -497,16 +489,6 @@
             }
             document.getElementById('lastUpdatedText').innerText = actualUpdateTime;
         }
-        
-        function showUpdateBanner() {
-            const banner = document.getElementById('updateNotificationBanner');
-            if (banner) banner.classList.remove('hidden');
-        }
-
-        function hideUpdateBanner() {
-            const banner = document.getElementById('updateNotificationBanner');
-            if (banner) banner.classList.add('hidden');
-        }
 
         async function fetchData(forceRefresh) {
             const url = WEB_APP_URL + "?" + (forceRefresh ? "refresh=true&" : "") + "nocache=" + Date.now();
@@ -514,14 +496,6 @@
             if (!response.ok) throw new Error("HTTP " + response.status);
             const res = await response.json();
             if (res.error) throw new Error(res.error);
-            
-            // Deteksi versi update dari server
-            if (res.serverTimestamp) {
-                if (lastKnownServerTime && res.serverTimestamp > lastKnownServerTime) {
-                    showUpdateBanner();
-                }
-                lastKnownServerTime = res.serverTimestamp;
-            }
 
             allData.sla3 = parseMatrixToObjects(res.sla3).map(row => { row['Tanggal'] = fixTimezone(row['Tanggal']); return row; });
             allData.sla4 = parseMatrixToObjects(res.sla4).map(row => { row['Tanggal'] = fixTimezone(row['Tanggal']); return row; });
@@ -547,7 +521,6 @@
             showLoading("Menyinkronkan Data", "Mengambil data terbaru...");
             try {
                 await fetchData(true);
-                hideUpdateBanner(); // Sembunyikan banner saat tombol ditekan
                 switchTab(currentTab);
             } catch (error) {
                 console.error("Gagal refresh data:", error);
@@ -977,10 +950,20 @@
             const regions = [...new Set(allData.progres.map(row => row['Region']).filter(Boolean))].sort();
             regions.forEach(r => { const opt = document.createElement('option'); opt.value = r; opt.innerText = r; regionSelect.appendChild(opt); });
             regionSelect.value = 'ALL';
-            setBillingType('prepaid', false, true);
+            
+            // Inisialisasi state filter awal dengan bulan terakhir untuk prepaid dan postpaid, ALL untuk 'all'
+            const initTypeData = allData.progres;
+            const prepaidPeriods = [...new Set(initTypeData.filter(r => String(r.Tipe_Layanan).trim().toLowerCase() === 'prepaid').map(r => r.Periode).filter(Boolean))].sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
+            const postpaidPeriods = [...new Set(initTypeData.filter(r => String(r.Tipe_Layanan).trim().toLowerCase() === 'postpaid').map(r => r.Periode).filter(Boolean))].sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
+
+            filterState.prepaid.periode = prepaidPeriods.length > 0 ? prepaidPeriods[0] : 'ALL';
+            filterState.postpaid.periode = postpaidPeriods.length > 0 ? postpaidPeriods[0] : 'ALL';
+            filterState.all.periode = 'ALL'; // Sesuai permintaan: semua tagihan menampilkan semua periode di awal
+
+            setBillingType('prepaid', false);
         }
 
-        function setBillingType(type, animate = true, forceLatest = false) {
+        function setBillingType(type, animate = true) {
             currentBillingType = type;
             const actClass = "px-5 py-2.5 rounded-lg bg-white shadow-sm text-rose-600 transition-all flex-shrink-0 sm:flex-none text-center whitespace-nowrap";
             const inactClass = "px-5 py-2.5 rounded-lg text-slate-500 hover:text-slate-700 transition-all flex-shrink-0 sm:flex-none text-center whitespace-nowrap";
@@ -994,32 +977,56 @@
             else if (type === 'postpaid') titleTarget.innerText = "Target Tagihan Pascabayar (Tgl 1)";
             else titleTarget.innerText = "Total Keseluruhan Tagihan";
 
-            updateDropdownsForBillingType(forceLatest);
+            updateDropdownsForBillingType();
+            
+            // Terapkan state yang tersimpan untuk tipe ini
+            document.getElementById('filterPeriode').value = filterState[type].periode;
+            document.getElementById('progFilterRegion').value = filterState[type].region;
+            document.getElementById('progStartDate').value = filterState[type].startDate;
+            document.getElementById('progEndDate').value = filterState[type].endDate;
+
             if (animate) triggerActionAnimation(() => { applyProgresFilter(); });
             else applyProgresFilter();
         }
 
-        function updateDropdownsForBillingType(forceLatest = false) {
+        function updateDropdownsForBillingType() {
             const typeFilteredData = allData.progres.filter(rowMatchesBillingType);
             const periodSelect = document.getElementById('filterPeriode');
-            const currentSelectedPeriod = periodSelect.value;
-
+            
             periodSelect.innerHTML = '<option value="ALL">Semua Periode</option>';
             const periods = [...new Set(typeFilteredData.map(row => row['Periode']).filter(Boolean))];
             periods.sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
             periods.forEach(p => { const opt = document.createElement('option'); opt.value = p; opt.innerText = p; periodSelect.appendChild(opt); });
+        }
 
-            if (forceLatest) periodSelect.value = periods.length > 0 ? periods[0] : 'ALL';
-            else if (currentSelectedPeriod === 'ALL') periodSelect.value = 'ALL';
-            else if (periods.includes(currentSelectedPeriod)) periodSelect.value = currentSelectedPeriod;
-            else periodSelect.value = periods.length > 0 ? periods[0] : 'ALL';
+        // Fungsi baru untuk menangani perubahan filter khusus agar disimpan di state
+        function onPeriodChange() {
+            filterState[currentBillingType].periode = document.getElementById('filterPeriode').value;
+            applyProgresFilter();
         }
 
         function resetProgresFilter() {
+            const typeFilteredData = allData.progres.filter(rowMatchesBillingType);
+            const periods = [...new Set(typeFilteredData.map(row => row['Periode']).filter(Boolean))].sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
+            
+            // Logika reset: bulan terakhir untuk prepaid/postpaid, ALL untuk all
+            let defaultPeriod = 'ALL';
+            if (currentBillingType === 'prepaid' || currentBillingType === 'postpaid') {
+                 defaultPeriod = periods.length > 0 ? periods[0] : 'ALL';
+            }
+
             document.getElementById('progStartDate').value = '';
             document.getElementById('progEndDate').value = '';
             document.getElementById('progFilterRegion').value = 'ALL';
-            updateDropdownsForBillingType(true);
+            document.getElementById('filterPeriode').value = defaultPeriod;
+            
+            filterState[currentBillingType] = {
+                periode: defaultPeriod,
+                region: 'ALL',
+                startDate: '',
+                endDate: ''
+            };
+
             applyProgresFilter();
         }
 
@@ -1044,6 +1051,14 @@
             const selectedRegion = document.getElementById('progFilterRegion').value;
             const startStr = document.getElementById('progStartDate').value;
             const endStr = document.getElementById('progEndDate').value;
+
+            // Simpan state terkini
+            filterState[currentBillingType] = {
+                periode: selectedPeriod,
+                region: selectedRegion,
+                startDate: startStr,
+                endDate: endStr
+            };
 
             const typeFilteredData = allData.progres.filter(rowMatchesBillingType);
 
@@ -1279,33 +1294,6 @@
                     scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { ticks: { maxRotation: 45, minRotation: 45 } } }
                 }
             });
-        }
-
-        // ==========================================
-        // FITUR PENGECEKAN UPDATE DI LATAR BELAKANG
-        // ==========================================
-
-        // Jalankan pengecekan setiap 5 menit (300.000 milidetik)
-        setInterval(cekUpdateBackground, 300000);
-
-        async function cekUpdateBackground() {
-            try {
-                // Memanggil data cache dari server dengan parameter nocache
-                const url = WEB_APP_URL + "?nocache=" + Date.now();
-                const response = await fetch(url);
-                
-                if (!response.ok) return; // Jika gagal/jaringan putus abaikan tanpa pesan error
-                const res = await response.json();
-
-                // Deteksi timestamp server
-                if (res.serverTimestamp && lastKnownServerTime) {
-                    if (res.serverTimestamp > lastKnownServerTime) {
-                        showUpdateBanner();
-                    }
-                }
-            } catch (error) {
-                console.log("Cek update latar belakang ditunda:", error.message);
-            }
         }
 
         window.onload = () => {
