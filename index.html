@@ -887,33 +887,33 @@
             const getHeaderClass = (colName, baseClass) => {
                 const isActive = activeSort === colName;
                 const activeStyle = isActive ? 'bg-sky-50/60 text-sky-700 shadow-[inset_0_-2px_0_#0284c7]' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700';
-                return `group cursor-pointer transition-all duration-200 py-3 px-3 text-[11px] sm:text-xs font-bold uppercase select-none flex items-center justify-end ${baseClass} ${activeStyle}`;
+                return `group cursor-pointer transition-all duration-200 py-3 px-3 text-[11px] sm:text-xs font-bold uppercase select-none ${baseClass} ${activeStyle}`;
             };
 
             if (theadRow) {
                 if (isModeEfektifitas) {
                     theadRow.innerHTML = `
                         <th class="py-3 px-3 text-[11px] sm:text-xs font-bold text-slate-500 uppercase w-3/12 border-b border-slate-200 text-left">Agen & Region</th>
-                        <th onclick="sortLeaderboard('outbound')" class="${getHeaderClass('outbound', 'w-2/12 border-l border-b border-slate-200')}" title="Urutkan Outbound">
+                        <th onclick="sortLeaderboard('outbound')" class="${getHeaderClass('outbound', 'w-2/12 border-l border-b border-slate-200 text-right')}" title="Urutkan Outbound">
                             Outbound ${getSortIcon('outbound')}
                         </th>
-                        <th onclick="sortLeaderboard('rp')" class="${getHeaderClass('rp', 'w-3/12 border-l border-b border-slate-200')}" title="Urutkan Rp & Pelanggan">
+                        <th onclick="sortLeaderboard('rp')" class="${getHeaderClass('rp', 'w-3/12 border-l border-b border-slate-200 text-right')}" title="Urutkan Rp & Pelanggan">
                             Rp & Plg ${getSortIcon('rp')}
                         </th>
-                        <th onclick="sortLeaderboard('capaian')" class="${getHeaderClass('capaian', 'w-2/12 border-l border-b border-slate-200')}" title="Urutkan Pencapaian">
+                        <th onclick="sortLeaderboard('capaian')" class="${getHeaderClass('capaian', 'w-2/12 border-l border-b border-slate-200 text-right')}" title="Urutkan Pencapaian">
                             Pencapaian ${getSortIcon('capaian')}
                         </th>
-                        <th onclick="sortLeaderboard('efektifitas')" class="${getHeaderClass('efektifitas', 'w-2/12 border-l border-b border-slate-200')}" title="Urutkan Efektifitas">
+                        <th onclick="sortLeaderboard('efektifitas')" class="${getHeaderClass('efektifitas', 'w-2/12 border-l border-b border-slate-200 text-right')}" title="Urutkan Efektifitas">
                             Efektifitas ${getSortIcon('efektifitas')}
                         </th>
                     `;
                 } else {
                     theadRow.innerHTML = `
                         <th class="py-3 px-3 text-[11px] sm:text-xs font-bold text-slate-500 uppercase w-5/12 border-b border-slate-200 text-left">Agen & Region</th>
-                        <th onclick="sortLeaderboard('rp')" class="${getHeaderClass('rp', 'w-4/12 border-l border-b border-slate-200')}" title="Urutkan Rp & Pelanggan">
+                        <th onclick="sortLeaderboard('rp')" class="${getHeaderClass('rp', 'w-4/12 border-l border-b border-slate-200 text-right')}" title="Urutkan Rp & Pelanggan">
                             Rp & Pelanggan ${getSortIcon('rp')}
                         </th>
-                        <th onclick="sortLeaderboard('capaian')" class="${getHeaderClass('capaian', 'w-3/12 border-l border-b border-slate-200')}" title="Urutkan Pencapaian">
+                        <th onclick="sortLeaderboard('capaian')" class="${getHeaderClass('capaian', 'w-3/12 border-l border-b border-slate-200 text-right')}" title="Urutkan Pencapaian">
                             Capaian ${getSortIcon('capaian')}
                         </th>
                     `;
