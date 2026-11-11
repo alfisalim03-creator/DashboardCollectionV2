@@ -49,9 +49,8 @@
         </div>
     </div>
 
-    <!-- WRAPPER W-FULL UNTUK LEBAR PENUH DI GOOGLE SITES -->
-    <!-- Tambahkan max-w-7xl atau max-w-[1440px] -->
-<div id="dashboardWrapper" class="w-full max-w-[1440px] mx-auto space-y-4 sm:space-y-6 px-2 sm:px-6">
+    <!-- WRAPPER UTAMA -->
+    <div id="dashboardWrapper" class="w-full max-w-[1440px] mx-auto space-y-4 sm:space-y-6 px-2 sm:px-6">
 
         <!-- HEADER & BADGE WAKTU UPDATE -->
         <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-slate-200 pb-4">
@@ -80,6 +79,13 @@
                 </button>
                 <button onclick="switchTab('progres')" id="btnProgres" class="flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-white text-slate-600 border border-slate-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-center flex items-center justify-center gap-2">
                     Progres Tagihan
+                </button>
+                <!-- TAMBAHAN TAB HABIT BAYAR -->
+                <button onclick="switchTab('habit')" id="btnHabit" class="flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-white text-slate-600 border border-slate-200 hover:bg-purple-50 hover:text-purple-600 hover:border-purple-200 text-center flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    Habit Bayar
                 </button>
             </div>
 
@@ -186,7 +192,6 @@
                             <thead>
                                 <tr id="leaderboardHeadRow" class="bg-slate-50 sticky top-0 z-10 border-b border-slate-100">
                                     <th class="py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase w-3/12">Agen & Region</th>
-                                    <!-- Diubah menjadi text-right untuk angka tabular -->
                                     <th onclick="sortLeaderboard('outbound')" class="cursor-pointer hover:bg-slate-200 transition-colors py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-right w-2/12 border-l border-slate-200 select-none" title="Klik untuk urutkan">Outbound <span class="text-slate-400 font-bold ml-1 text-[11px]">↕</span></th>
                                     <th onclick="sortLeaderboard('rp')" class="cursor-pointer hover:bg-slate-200 transition-colors py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-right w-3/12 border-l border-slate-200 select-none" title="Klik untuk urutkan">Rp & Pelanggan <span class="text-slate-400 font-bold ml-1 text-[11px]">↕</span></th>
                                     <th onclick="sortLeaderboard('capaian')" class="cursor-pointer hover:bg-slate-200 transition-colors py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-right w-2/12 border-l border-slate-200 select-none" title="Klik untuk urutkan">Capaian <span class="text-slate-400 font-bold ml-1 text-[11px]">↕</span></th>
@@ -390,25 +395,74 @@
                 </div>
             </div>
         </div>
+
+        <!-- WADAH 3: HABIT BAYAR -->
+        <div id="habitContainer" class="hidden space-y-4 sm:space-y-6 pb-8">
+            
+            <!-- Baris Atas: 2 Grafik Analisis -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                <!-- Grafik 1: Kategori Kecepatan Bayar -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                    <h3 class="font-bold text-slate-700 mb-1">Tren Kecepatan Bayar</h3>
+                    <p class="text-xs text-slate-500 mb-4">Distribusi status kelancaran pembayaran pelanggan lunas.</p>
+                    <div class="relative h-[250px] w-full">
+                        <canvas id="chartHabitKategori"></canvas>
+                    </div>
+                </div>
+
+                <!-- Grafik 2: Top Channel Pembayaran -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                    <h3 class="font-bold text-slate-700 mb-1">Top Channel Pembayaran</h3>
+                    <p class="text-xs text-slate-500 mb-4">Metode bayar yang paling sering digunakan pelanggan.</p>
+                    <div class="relative h-[250px] w-full">
+                        <canvas id="chartHabitChannel"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Baris Bawah: Kartu Peringatan Anomali (Watchlist) -->
+            <div class="bg-gradient-to-r from-red-50 to-orange-50 p-6 rounded-2xl border border-red-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="flex items-start gap-4">
+                    <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center flex-shrink-0">
+                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-red-800 text-lg">Watchlist: Pelanggan Anomali</h3>
+                        <p class="text-red-600 text-sm mt-1" id="teksWatchlist">Menganalisis data pelanggan...</p>
+                        <p class="text-xs text-red-500/80 mt-1">Berisi pelanggan rutin yang bulan ini belum bayar atau kena isolir.</p>
+                    </div>
+                </div>
+                <button onclick="downloadWatchlistCSV()" id="btnDownloadWatchlist" class="flex-shrink-0 w-full sm:w-auto px-5 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Download Data (CSV)
+                </button>
+            </div>
+        </div>
     </div>
 
     <script>
+        // ⚠️ PASTIKAN URL DI BAWAH INI ADALAH URL APPS SCRIPT ANDA YANG AKTIF (YANG BARU DI-DEPLOY)
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxohEYzE3Th9LRITFZHlK4IAmsXN-byA88nTytdF2PQj2z8A82bicIJUOZliE1IDjo2WA/exec";
         
         Chart.defaults.scale.grid.color = '#f1f5f9'; 
         Chart.defaults.font.family = "'Inter', sans-serif"; 
         
-        let allData = { sla3: [], sla4: [], progres: [] };
+        // VARIABEL GLOBAL DIPERBARUI
+        let allData = { sla3: [], sla4: [], progres: [], habit: [], watchlistRaw: [] };
         let rawData = [];
         let currentTab = 'sla3';
         let currentBillingType = 'prepaid';
         let trenChartInst = null, regionChartInst = null, progresTrenChartInst = null;
+        let chartKategoriInstance = null, chartChannelInstance = null;
         
         let lbSortCol = 'default';
         let lbSortAsc = false;
         let lastFilteredData = [];
 
-        // State filter independen per tipe tagihan
         const filterState = {
             prepaid: { periode: 'ALL', region: 'ALL', startDate: '', endDate: '' },
             postpaid: { periode: 'ALL', region: 'ALL', startDate: '', endDate: '' },
@@ -558,9 +612,14 @@
             const res = await response.json();
             if (res.error) throw new Error(res.error);
 
-            allData.sla3 = parseMatrixToObjects(res.sla3).map(row => { row['Tanggal'] = fixTimezone(row['Tanggal']); return row; });
-            allData.sla4 = parseMatrixToObjects(res.sla4).map(row => { row['Tanggal'] = fixTimezone(row['Tanggal']); return row; });
-            allData.progres = parseMatrixToObjects(res.progres).map(row => { row['Tanggal_Bayar_Saja'] = fixTimezone(row['Tanggal_Bayar_Saja']); return row; });
+            // Parsing Data Utama
+            if (res.sla3) allData.sla3 = parseMatrixToObjects(res.sla3).map(row => { row['Tanggal'] = fixTimezone(row['Tanggal']); return row; });
+            if (res.sla4) allData.sla4 = parseMatrixToObjects(res.sla4).map(row => { row['Tanggal'] = fixTimezone(row['Tanggal']); return row; });
+            if (res.progres) allData.progres = parseMatrixToObjects(res.progres).map(row => { row['Tanggal_Bayar_Saja'] = fixTimezone(row['Tanggal_Bayar_Saja']); return row; });
+            
+            // Parsing Data Habit & Watchlist (Data Baru)
+            if (res.habit) allData.habit = parseMatrixToObjects(res.habit);
+            if (res.watchlist) allData.watchlistRaw = res.watchlist; // Disimpan versi aslinya (array of array) untuk di-download jadi CSV
 
             updateDisplayWaktuSync();
         }
@@ -601,23 +660,26 @@
         }
 
         /* ==========================================================
-            TAB UTAMA
+            TAB UTAMA & TAB HABIT (BARU)
         ========================================================== */
         function switchTab(tab) {
             triggerActionAnimation(() => {
                 currentTab = tab;
-                const btn3 = document.getElementById('btnSla3'), btnP = document.getElementById('btnProgres');
-                const slaBox = document.getElementById('slaContainer'), progBox = document.getElementById('progresContainer');
+                const btn3 = document.getElementById('btnSla3'), btnP = document.getElementById('btnProgres'), btnH = document.getElementById('btnHabit');
+                const slaBox = document.getElementById('slaContainer'), progBox = document.getElementById('progresContainer'), habitBox = document.getElementById('habitContainer');
 
                 const activeSla = "flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-sky-600 text-white text-center";
                 const inactiveSla = "flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 text-center";
                 const activeProg = "flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-rose-500 text-white text-center flex items-center justify-center gap-2";
                 const inactiveProg = "flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-white text-slate-600 border border-slate-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-center flex items-center justify-center gap-2";
+                const activeHabit = "flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-purple-600 text-white text-center flex items-center justify-center gap-2";
+                const inactiveHabit = "flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-white text-slate-600 border border-slate-200 hover:bg-purple-50 hover:text-purple-600 hover:border-purple-200 text-center flex items-center justify-center gap-2";
 
-                btn3.className = inactiveSla; btnP.className = inactiveProg;
+                btn3.className = inactiveSla; btnP.className = inactiveProg; btnH.className = inactiveHabit;
+                slaBox.classList.add('hidden'); progBox.classList.add('hidden'); habitBox.classList.add('hidden');
 
                 if (tab === 'sla3' || tab === 'sla4') {
-                    slaBox.classList.remove('hidden'); progBox.classList.add('hidden');
+                    slaBox.classList.remove('hidden');
                     if (tab === 'sla3') { btn3.className = activeSla; rawData = allData.sla3; }
 
                     const periodSelect = document.getElementById('filterPeriodeSla');
@@ -636,16 +698,135 @@
                     setDefaultSlaDates();
                     applyFilterWithoutAnimation();
                 } else if (tab === 'progres') {
-                    btnP.className = activeProg; slaBox.classList.add('hidden'); progBox.classList.remove('hidden');
+                    btnP.className = activeProg; progBox.classList.remove('hidden');
                     initProgresTab();
+                } else if (tab === 'habit') {
+                    btnH.className = activeHabit; habitBox.classList.remove('hidden');
+                    renderHabitData();
                 }
 
                 updateDisplayWaktuSync();
             });
         }
 
+        // FUNGSI HABIT BAYAR
+        function renderHabitData() {
+            const dataHabit = allData.habit;
+            const dataWatchlist = allData.watchlistRaw;
+            
+            const teksWatchlist = document.getElementById("teksWatchlist");
+            const btnDownload = document.getElementById("btnDownloadWatchlist");
+            
+            // Watchlist count (kurangi 1 untuk header)
+            const jumlahAnomali = (dataWatchlist && dataWatchlist.length > 1) ? dataWatchlist.length - 1 : 0;
+            
+            if (jumlahAnomali > 0) {
+                teksWatchlist.innerHTML = `Ditemukan <b>${jumlahAnomali} pelanggan</b> prioritas untuk di-follow up hari ini.`;
+                btnDownload.disabled = false;
+            } else {
+                teksWatchlist.innerHTML = "Luar biasa! Tidak ada pelanggan anomali (rutin menunggak) saat ini.";
+                btnDownload.disabled = true;
+            }
+
+            if (!dataHabit || dataHabit.length === 0) return;
+
+            const rekapKategori = {};
+            const rekapChannel = {};
+
+            dataHabit.forEach(row => {
+                const kategori = row['kategori_bayar'] || "Tidak Diketahui";
+                const channel = row['pembayaranvia'] || "Tidak Terdeteksi";
+                const totalPlg = Number(row['total_pelanggan']) || 0;
+
+                rekapKategori[kategori] = (rekapKategori[kategori] || 0) + totalPlg;
+                rekapChannel[channel] = (rekapChannel[channel] || 0) + totalPlg;
+            });
+
+            // Grafik Donat Kategori
+            const labelKategori = Object.keys(rekapKategori).sort();
+            const dataKategori = labelKategori.map(k => rekapKategori[k]);
+            
+            const ctxKat = document.getElementById('chartHabitKategori').getContext('2d');
+            if (chartKategoriInstance) chartKategoriInstance.destroy();
+            
+            chartKategoriInstance = new Chart(ctxKat, {
+                type: 'doughnut',
+                data: {
+                    labels: labelKategori,
+                    datasets: [{
+                        data: dataKategori,
+                        backgroundColor: ['#22c55e', '#eab308', '#ef4444', '#94a3b8'], // Hijau, Kuning, Merah, Abu
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'right' } }
+                }
+            });
+
+            // Grafik Bar Channel Top 7
+            const sortedChannel = Object.entries(rekapChannel).sort((a, b) => b[1] - a[1]).slice(0, 7);
+            const labelChannel = sortedChannel.map(item => item[0]);
+            const dataChannel = sortedChannel.map(item => item[1]);
+
+            const ctxChan = document.getElementById('chartHabitChannel').getContext('2d');
+            if (chartChannelInstance) chartChannelInstance.destroy();
+            
+            chartChannelInstance = new Chart(ctxChan, {
+                type: 'bar',
+                data: {
+                    labels: labelChannel,
+                    datasets: [{
+                        label: 'Jumlah Pelanggan',
+                        data: dataChannel,
+                        backgroundColor: '#8b5cf6', // Ungu
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+
+        function downloadWatchlistCSV() {
+            const dataWatchlist = allData.watchlistRaw;
+            if (!dataWatchlist || dataWatchlist.length <= 1) {
+                alert("Tidak ada data anomali untuk didownload.");
+                return;
+            }
+
+            let csvContent = "";
+            dataWatchlist.forEach(rowArray => {
+                let row = rowArray.map(item => {
+                    let cell = (item === null || item === undefined) ? "" : String(item);
+                    cell = cell.replace(/"/g, '""'); 
+                    if (cell.search(/("|,|\n)/g) >= 0) {
+                        cell = `"${cell}"`; 
+                    }
+                    return cell;
+                });
+                csvContent += row.join(",") + "\n";
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            const tgl = new Date().toISOString().slice(0, 10);
+            link.setAttribute("download", `Watchlist_Anomali_${tgl}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
         /* ==========================================================
-            TAB SLA 3 & SLA 4
+            TAB SLA 3 & SLA 4 (LAMA)
         ========================================================== */
         function setDefaultSlaDates() {
             const dates = [...new Set(rawData.map(row => row['Tanggal']).filter(Boolean))].sort();
@@ -1001,7 +1182,7 @@
         }
 
         /* ==========================================================
-            TAB PROGRES TAGIHAN
+            TAB PROGRES TAGIHAN (LAMA)
         ========================================================== */
         const isLunasRow = (row) => String(row['Status'] || '').trim().toUpperCase() === 'LUNAS';
         const hasPayDate = (row) => { const t = row['Tanggal_Bayar_Saja']; return !!t && t !== 'Belum Bayar'; };
