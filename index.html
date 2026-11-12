@@ -396,54 +396,272 @@
             </div>
         </div>
 
+        =====================================================================
+ PATCH HTML DASHBOARD - TAB HABIT BAYAR (data Colab versi baru)
+ 4 langkah. Bagian lain (SLA 3, Progres) tidak disentuh.
+=====================================================================
+
+---------------------------------------------------------------------
+LANGKAH 1 - GANTI seluruh blok <!-- WADAH 3: HABIT BAYAR --> ... sampai
+            </div> penutupnya (tepat sebelum </div> penutup #dashboardWrapper)
+---------------------------------------------------------------------
         <!-- WADAH 3: HABIT BAYAR -->
         <div id="habitContainer" class="hidden space-y-4 sm:space-y-6 pb-8">
-            
-            <!-- Baris Atas: 2 Grafik Analisis -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-                <!-- Grafik 1: Kategori Kecepatan Bayar -->
-                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
-                    <h3 class="font-bold text-slate-700 mb-1">Tren Kecepatan Bayar</h3>
-                    <p class="text-xs text-slate-500 mb-4">Distribusi status kelancaran pembayaran pelanggan lunas.</p>
-                    <div class="relative h-[250px] w-full">
-                        <canvas id="chartHabitKategori"></canvas>
-                    </div>
-                </div>
+            <div id="habitNotice" class="hidden p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium">
+                ⚠️ Format data Habit lama terdeteksi. Jalankan ulang Colab versi terbaru agar angka akurat.
+            </div>
 
-                <!-- Grafik 2: Top Channel Pembayaran -->
-                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
-                    <h3 class="font-bold text-slate-700 mb-1">Top Channel Pembayaran</h3>
-                    <p class="text-xs text-slate-500 mb-4">Metode bayar yang paling sering digunakan pelanggan.</p>
-                    <div class="relative h-[250px] w-full">
-                        <canvas id="chartHabitChannel"></canvas>
-                    </div>
+            <!-- Filter -->
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-wrap items-center gap-2.5">
+                <select id="habitBulan" onchange="renderHabitData()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 bg-slate-50 font-semibold text-slate-700">
+                    <option value="ALL">Semua Bulan</option>
+                </select>
+                <select id="habitTipe" onchange="renderHabitData()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 bg-slate-50 font-semibold text-slate-700">
+                    <option value="ALL">Semua Tipe</option>
+                    <option value="prepaid">Prabayar</option>
+                    <option value="postpaid">Pascabayar</option>
+                </select>
+                <span class="text-[11px] text-slate-400">Bulan = bulan jatuh tempo tagihan (grafik) &amp; bulan bayar (borongan).</span>
+            </div>
+
+            <!-- KPI -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-l-purple-500 border border-slate-100">
+                    <p class="text-[11px] font-semibold uppercase text-slate-400 mb-1">Tagihan Lunas</p>
+                    <h3 id="hbTotal" class="text-2xl font-bold text-slate-700">0</h3>
+                </div>
+                <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-l-emerald-500 border border-slate-100">
+                    <p class="text-[11px] font-semibold uppercase text-slate-400 mb-1">Tepat Waktu (Advance + On-Time)</p>
+                    <h3 id="hbTepat" class="text-2xl font-bold text-emerald-600">-</h3>
+                </div>
+                <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-l-rose-500 border border-slate-100">
+                    <p class="text-[11px] font-semibold uppercase text-slate-400 mb-1">Telat (Grace + Isolir)</p>
+                    <h3 id="hbTelat" class="text-2xl font-bold text-rose-600">-</h3>
+                </div>
+                <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-l-sky-500 border border-slate-100">
+                    <p class="text-[11px] font-semibold uppercase text-slate-400 mb-1">Kejadian Bayar Borongan</p>
+                    <h3 id="hbBorongan" class="text-2xl font-bold text-sky-600">-</h3>
                 </div>
             </div>
 
-            <!-- Baris Bawah: Kartu Peringatan Anomali (Watchlist) -->
-            <div class="bg-gradient-to-r from-red-50 to-orange-50 p-6 rounded-2xl border border-red-100 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+            <!-- Grafik -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                    <h3 class="font-bold text-slate-700 mb-1">Distribusi Kecepatan Bayar</h3>
+                    <p class="text-xs text-slate-500 mb-4">Jumlah tagihan lunas, dinilai terhadap jatuh tempo periodenya masing-masing.</p>
+                    <div class="relative h-[250px] w-full"><canvas id="chartHabitKategori"></canvas></div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                    <h3 class="font-bold text-slate-700 mb-1">Top Channel Pembayaran</h3>
+                    <p class="text-xs text-slate-500 mb-4">Channel terbanyak, dipecah per kategori kecepatan bayar.</p>
+                    <div class="relative h-[250px] w-full"><canvas id="chartHabitChannel"></canvas></div>
+                </div>
+            </div>
+
+            <!-- Profil pelanggan -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                <h3 class="font-bold text-slate-700 mb-1">Profil Habit Pelanggan</h3>
+                <p class="text-xs text-slate-500 mb-4">Label per pelanggan dari kejadian bayar 6 bulan terakhir (tidak terpengaruh filter bulan).</p>
+                <div id="profilList" class="space-y-3"></div>
+            </div>
+
+            <!-- Watchlist -->
+            <div class="bg-gradient-to-r from-red-50 to-orange-50 p-6 rounded-2xl border border-red-100 shadow-sm flex flex-col lg:flex-row items-center justify-between gap-4">
                 <div class="flex items-start gap-4">
                     <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center flex-shrink-0">
-                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                        </svg>
+                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                     </div>
                     <div>
                         <h3 class="font-bold text-red-800 text-lg">Watchlist: Pelanggan Anomali</h3>
                         <p class="text-red-600 text-sm mt-1" id="teksWatchlist">Menganalisis data pelanggan...</p>
-                        <p class="text-xs text-red-500/80 mt-1">Berisi pelanggan rutin yang bulan ini belum bayar atau kena isolir.</p>
+                        <p class="text-xs text-red-500/80 mt-1">Pelanggan rutin yang bulan ini belum bayar, atau yang baru lunas setelah kena isolir.</p>
                     </div>
                 </div>
-                <button onclick="downloadWatchlistCSV()" id="btnDownloadWatchlist" class="flex-shrink-0 w-full sm:w-auto px-5 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                    Download Data (CSV)
-                </button>
+                <div class="flex flex-col sm:flex-row items-stretch gap-2 w-full lg:w-auto">
+                    <select id="wlFase" class="px-3 py-3 text-sm border border-red-200 rounded-xl bg-white font-semibold text-slate-700"></select>
+                    <button onclick="downloadWatchlistCSV()" id="btnDownloadWatchlist" class="flex-shrink-0 px-5 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                        Download CSV
+                    </button>
+                </div>
             </div>
         </div>
-    </div>
 
+
+---------------------------------------------------------------------
+LANGKAH 2 - Tiga perubahan kecil di <script>
+---------------------------------------------------------------------
+(a) GANTI baris:
+        let allData = { sla3: [], sla4: [], progres: [], habit: [], watchlistRaw: [] };
+    MENJADI:
+        let allData = { sla3: [], sla4: [], progres: [], habit: [], habitEvent: [], profil: [], watchlistRaw: [] };
+
+(b) Di fetchData(), GANTI dua baris di bawah komentar "Parsing Data Habit & Watchlist":
+        if (res.habit) allData.habit = parseMatrixToObjects(res.habit);
+        if (res.watchlist) allData.watchlistRaw = res.watchlist; ...
+    MENJADI:
+        allData.habit = res.habit ? parseMatrixToObjects(res.habit) : [];
+        allData.habitEvent = res.habitEvent ? parseMatrixToObjects(res.habitEvent) : [];
+        allData.profil = res.profil ? parseMatrixToObjects(res.profil) : [];
+        allData.watchlistRaw = res.watchlist || [];
+
+(c) Di updateDisplayWaktuSync(), TAMBAHKAN cabang ini setelah cabang `else if ((currentTab === 'sla3' || ...`:
+        else if (currentTab === 'habit') {
+            actualUpdateTime = (allData.habit[0] && allData.habit[0].Waktu_Update) ? allData.habit[0].Waktu_Update + ' WIB' : 'Mengikuti proses Colab';
+        }
+
+
+---------------------------------------------------------------------
+LANGKAH 3 - HAPUS fungsi lama renderHabitData() dan downloadWatchlistCSV(),
+            LALU tempel blok ini di tempatnya
+---------------------------------------------------------------------
+        const HABIT_ORDER = ['Advance Payer (Aman)', 'On-Time Payer (Lancar)', 'Grace Period Payer (Warning)', 'Isolated Payer (Telat)'];
+        const HABIT_COLOR = ['#0ea5e9', '#22c55e', '#eab308', '#ef4444'];
+        const PROFIL_ORDER = [['Disiplin (Lancar)', '#22c55e'], ['Mepet Batas (Warning)', '#eab308'], ['Sering Telat (Risiko Tinggi)', '#ef4444'], ['Data Belum Cukup', '#94a3b8']];
+
+        const ym = (v) => String(v == null ? '' : v).slice(0, 7);
+        const bulanLabel = (s) => { const p = s.split('-'); return p[1] ? `${bulanNames[Number(p[1]) - 1]} ${p[0]}` : s; };
+        const lower = (v) => String(v || '').toLowerCase();
+
+        function renderHabitData() {
+            // Peringatan kalau sheet masih format lama (belum ada kolom bulan_jatuh_tempo)
+            const legacy = allData.habit.length > 0 && !('bulan_jatuh_tempo' in allData.habit[0]);
+            document.getElementById('habitNotice').classList.toggle('hidden', !legacy);
+
+            const rows = allData.habit.map(r => ({
+                kat: r['kategori_bayar'] || 'Tidak Terdeteksi',
+                via: r['pembayaranvia'] || 'Tidak Diketahui',
+                bulan: ym(r['bulan_jatuh_tempo']),
+                tipe: lower(r['tipe_layanan']),
+                n: Number(r['jml_tagihan'] ?? r['total_pelanggan']) || 0   // jml_tagihan bisa dijumlah; total_pelanggan tidak
+            }));
+            const events = allData.habitEvent;
+
+            // Dropdown bulan (pilihan sebelumnya dipertahankan)
+            const sel = document.getElementById('habitBulan'), prev = sel.value || 'ALL';
+            const months = [...new Set([...rows.map(r => r.bulan), ...events.map(e => ym(e['bulan_bayar']))].filter(Boolean))].sort().reverse();
+            sel.innerHTML = '<option value="ALL">Semua Bulan</option>' + months.map(m => `<option value="${m}">${bulanLabel(m)}</option>`).join('');
+            sel.value = months.includes(prev) ? prev : 'ALL';
+
+            const bulan = sel.value, tipe = document.getElementById('habitTipe').value;
+            const okTipe = (t) => tipe === 'ALL' || t === tipe;
+
+            // Rekap tagihan
+            const byKat = {}, byVia = {};
+            let total = 0;
+            rows.filter(r => (bulan === 'ALL' || r.bulan === bulan) && okTipe(r.tipe)).forEach(r => {
+                byKat[r.kat] = (byKat[r.kat] || 0) + r.n;
+                byVia[r.via] = byVia[r.via] || {};
+                byVia[r.via][r.kat] = (byVia[r.via][r.kat] || 0) + r.n;
+                total += r.n;
+            });
+
+            // Rekap kejadian bayar (borongan)
+            let evAll = 0, evBor = 0;
+            events.filter(e => (bulan === 'ALL' || ym(e['bulan_bayar']) === bulan) && okTipe(lower(e['tipe_layanan']))).forEach(e => {
+                const k = Number(e['jml_kejadian_bayar']) || 0;
+                evAll += k;
+                if (e['jenis_bayar'] === 'Borongan') evBor += k;
+            });
+
+            // KPI
+            const pct = (a, b) => b > 0 ? (a / b * 100).toFixed(1) + '%' : '-';
+            const tepat = (byKat[HABIT_ORDER[0]] || 0) + (byKat[HABIT_ORDER[1]] || 0);
+            const telat = (byKat[HABIT_ORDER[2]] || 0) + (byKat[HABIT_ORDER[3]] || 0);
+            document.getElementById('hbTotal').innerText = total.toLocaleString('id-ID');
+            document.getElementById('hbTepat').innerText = pct(tepat, total);
+            document.getElementById('hbTelat').innerText = pct(telat, total);
+            document.getElementById('hbBorongan').innerText = pct(evBor, evAll);
+
+            // Donat kategori (warna terikat ke kategori, bukan ke urutan abjad)
+            const kats = HABIT_ORDER.filter(k => byKat[k]);
+            if (chartKategoriInstance) chartKategoriInstance.destroy();
+            chartKategoriInstance = new Chart(document.getElementById('chartHabitKategori'), {
+                type: 'doughnut',
+                data: { labels: kats, datasets: [{ data: kats.map(k => byKat[k]), backgroundColor: kats.map(k => HABIT_COLOR[HABIT_ORDER.indexOf(k)]), borderWidth: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+            });
+
+            // Bar channel (stacked per kategori), top 7
+            const vias = Object.entries(byVia)
+                .map(([v, m]) => [v, Object.values(m).reduce((a, b) => a + b, 0)])
+                .sort((a, b) => b[1] - a[1]).slice(0, 7).map(x => x[0]);
+            if (chartChannelInstance) chartChannelInstance.destroy();
+            chartChannelInstance = new Chart(document.getElementById('chartHabitChannel'), {
+                type: 'bar',
+                data: { labels: vias, datasets: HABIT_ORDER.map((k, i) => ({ label: k, data: vias.map(v => byVia[v][k] || 0), backgroundColor: HABIT_COLOR[i] })) },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }
+                }
+            });
+
+            // Profil pelanggan (hanya filter tipe; sudah diringkas Apps Script)
+            const pf = {}; let pfTotal = 0;
+            allData.profil.filter(p => okTipe(lower(p['tipe_layanan']))).forEach(p => {
+                const n = Number(p['jml_pelanggan']) || 0;
+                pf[p['label_habit']] = (pf[p['label_habit']] || 0) + n;
+                pfTotal += n;
+            });
+            document.getElementById('profilList').innerHTML = pfTotal ? PROFIL_ORDER.map(([label, color]) => {
+                const n = pf[label] || 0, w = n / pfTotal * 100;
+                return `<div>
+                    <div class="flex justify-between text-xs mb-1"><span class="font-semibold text-slate-600">${escapeHtml(label)}</span><span class="text-slate-500">${n.toLocaleString('id-ID')} pelanggan (${w.toFixed(1)}%)</span></div>
+                    <div class="w-full bg-slate-100 rounded-full h-2.5"><div class="h-2.5 rounded-full" style="width:${w.toFixed(1)}%;background:${color}"></div></div>
+                </div>`;
+            }).join('') : '<p class="text-xs text-slate-400">Belum ada data profil. Jalankan Colab versi terbaru.</p>';
+
+            renderWatchlistInfo();
+        }
+
+        function getWatchlist() {
+            const w = allData.watchlistRaw || [];
+            if (w.length < 2) return { head: [], rows: [] };
+            return { head: w[0].map(h => String(h).trim()), rows: w.slice(1) };
+        }
+
+        function renderWatchlistInfo() {
+            const { head, rows } = getWatchlist();
+            const iF = head.indexOf('fase_penagihan');
+            const cnt = {};
+            rows.forEach(r => { const k = iF >= 0 ? (r[iF] || 'Lainnya') : 'Semua'; cnt[k] = (cnt[k] || 0) + 1; });
+
+            const sel = document.getElementById('wlFase'), prev = sel.value || 'ALL';
+            sel.innerHTML = `<option value="ALL">Semua fase (${rows.length.toLocaleString('id-ID')})</option>` +
+                Object.entries(cnt).map(([k, n]) => `<option value="${escapeHtml(k)}">${escapeHtml(k)} (${n.toLocaleString('id-ID')})</option>`).join('');
+            sel.value = (prev in cnt) ? prev : 'ALL';
+
+            document.getElementById('teksWatchlist').innerHTML = rows.length
+                ? `Ditemukan <b>${rows.length.toLocaleString('id-ID')} data</b> prioritas untuk di-follow up.`
+                : 'Luar biasa! Tidak ada pelanggan anomali (rutin menunggak) saat ini.';
+            document.getElementById('btnDownloadWatchlist').disabled = rows.length === 0;
+        }
+
+        function downloadWatchlistCSV() {
+            const { head, rows } = getWatchlist();
+            if (!rows.length) { alert("Tidak ada data anomali untuk didownload."); return; }
+
+            const fase = document.getElementById('wlFase').value, iF = head.indexOf('fase_penagihan');
+            const pick = (fase === 'ALL' || iF < 0) ? rows : rows.filter(r => String(r[iF]) === fase);
+            const esc = (v) => { const c = v == null ? '' : String(v).replace(/"/g, '""'); return /["\n,]/.test(c) ? `"${c}"` : c; };
+            const csv = [head, ...pick].map(r => r.map(esc).join(',')).join('\n');
+
+            const url = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' }));
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `Watchlist_Anomali_${new Date().toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+
+---------------------------------------------------------------------
+LANGKAH 4 - Urutan deploy
+---------------------------------------------------------------------
+1. Jalankan Colab versi baru sampai selesai (sheet DataHabitEvent & DataProfilHabit terbentuk).
+2. Tempel patch Apps Script -> Deploy versi baru -> jalankan hapusCacheManual() sekali.
+3. Ganti HTML sesuai Langkah 1-3, lalu tekan "Sinkronkan Data" di dashboard.
     <script>
         // ⚠️ PASTIKAN URL DI BAWAH INI ADALAH URL APPS SCRIPT ANDA YANG AKTIF (YANG BARU DI-DEPLOY)
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxohEYzE3Th9LRITFZHlK4IAmsXN-byA88nTytdF2PQj2z8A82bicIJUOZliE1IDjo2WA/exec";
