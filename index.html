@@ -6,10 +6,18 @@
     <title>Dashboard Pencapaian Collection</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Leaflet.js & MarkerCluster untuk Peta Interaktif -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; margin: 0; }
         .chart-container { position: relative; height: 320px; width: 100%; min-height: 280px; }
+        #progresMap { height: 440px; width: 100%; z-index: 1; }
+        @media (max-width: 640px) { #progresMap { height: 380px; } }
         
         /* Custom Scrollbar untuk Tabel */
         .table-scroll::-webkit-scrollbar { width: 4px; height: 6px; }
@@ -34,6 +42,8 @@
             top: 0; left: 0; width: 100%; height: 100%;
             opacity: 0; cursor: pointer;
         }
+        .leaflet-popup-content-wrapper { border-radius: 12px; font-family: 'Inter', sans-serif; }
+        .leaflet-popup-content { margin: 12px 14px; font-size: 12px; line-height: 1.45; }
     </style>
 </head>
 <body class="p-3 sm:p-6 text-slate-800">
@@ -41,7 +51,7 @@
     <!-- LOADING OVERLAY UTAMA -->
     <div id="loadingOverlay" class="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-start pt-16 sm:pt-20 transition-opacity duration-300">
         <div class="bg-white px-6 py-4 rounded-2xl shadow-xl flex items-center gap-4 border border-slate-100">
-            <div class="w-6 h-6 border-4 border-sky-600 border-t-transparent rounded-full animate-spin"></div>
+            <div class="w-6 h-6 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
             <div>
                 <h4 id="loadingTitle" class="text-sm font-bold text-slate-800">Memuat Dashboard</h4>
                 <p id="loadingText" class="text-[11px] text-slate-400">Sinkronisasi data dari server...</p>
@@ -49,8 +59,8 @@
         </div>
     </div>
 
-    <!-- WRAPPER UTAMA -->
-    <div id="dashboardWrapper" class="w-full max-w-[1440px] mx-auto space-y-4 sm:space-y-6 px-2 sm:px-6">
+    <!-- WRAPPER LEBAR PENUH DI GOOGLE SITES -->
+    <div id="dashboardWrapper" class="w-full mx-auto space-y-4 sm:space-y-6 px-2 sm:px-6">
 
         <!-- HEADER & BADGE WAKTU UPDATE -->
         <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-slate-200 pb-4">
@@ -71,7 +81,7 @@
         <!-- TAB SWITCHER MAIN -->
         <div class="flex flex-col sm:flex-row items-center justify-between gap-3 w-full">
             <div class="flex overflow-x-auto pb-2 sm:pb-0 gap-2 sm:gap-3 w-full sm:w-auto hide-scrollbar">
-                <button onclick="switchTab('sla3')" id="btnSla3" class="flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-sky-600 text-white text-center">
+                <button onclick="switchTab('sla3')" id="btnSla3" class="flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-indigo-600 text-white text-center">
                     Pencapaian Collection
                 </button>
                 <button onclick="switchTab('sla4')" id="btnSla4" class="hidden flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 text-center">
@@ -80,16 +90,9 @@
                 <button onclick="switchTab('progres')" id="btnProgres" class="flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-white text-slate-600 border border-slate-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-center flex items-center justify-center gap-2">
                     Progres Tagihan
                 </button>
-                <!-- TAMBAHAN TAB HABIT BAYAR -->
-                <button onclick="switchTab('habit')" id="btnHabit" class="flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-white text-slate-600 border border-slate-200 hover:bg-purple-50 hover:text-purple-600 hover:border-purple-200 text-center flex items-center justify-center gap-2">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
-                    Habit Bayar
-                </button>
             </div>
 
-            <button onclick="forceRefreshData()" class="w-full sm:w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-white text-sky-600 border border-sky-200 hover:bg-sky-50 text-center flex items-center justify-center gap-2">
+            <button onclick="forceRefreshData()" class="w-full sm:w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50 text-center flex items-center justify-center gap-2">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
@@ -113,13 +116,13 @@
                     </button>
                 </div>
                 <div class="flex flex-wrap items-center gap-2.5 pt-2 border-t border-slate-100">
-                    <select id="filterPeriodeSla" onchange="onPeriodChangeSla()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-sky-500 bg-slate-50 font-semibold text-slate-700">
+                    <select id="filterPeriodeSla" onchange="onPeriodChangeSla()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 bg-slate-50 font-semibold text-slate-700">
                         <option value="ALL">Semua Periode</option>
                     </select>
-                    <select id="filterRegion" onchange="applyFilter()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-sky-500 bg-slate-50 font-semibold text-slate-700">
+                    <select id="filterRegion" onchange="applyFilter()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 bg-slate-50 font-semibold text-slate-700">
                         <option value="ALL">Semua Region</option>
                     </select>
-                    <div class="flex items-center gap-2 bg-white border border-slate-200 px-3.5 py-1.5 rounded-xl shadow-sm focus-within:border-sky-500 focus-within:ring-1 focus-within:ring-sky-500 transition-all">
+                    <div class="flex items-center gap-2 bg-white border border-slate-200 px-3.5 py-1.5 rounded-xl shadow-sm focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 transition-all">
                         <span class="text-xs font-semibold text-slate-500 whitespace-nowrap">📅 Rentang:</span>
                         <input type="date" id="startDate" onclick="try{this.showPicker();}catch(e){}" onchange="applyFilter()" class="text-sm bg-transparent border-none focus:outline-none focus:ring-0 text-slate-700 cursor-pointer font-medium w-[110px] sm:w-[120px]">
                         <span class="text-slate-300">|</span>
@@ -133,22 +136,22 @@
                     <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Total Keseluruhan Revenue</p>
                     <h3 id="totalRupiah" class="text-2xl sm:text-3xl font-bold text-emerald-600">Rp 0</h3>
                 </div>
-                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-sky-600 border border-slate-100 flex flex-col justify-center">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-indigo-600 border border-slate-100 flex flex-col justify-center">
                     <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Total Keseluruhan Pelanggan</p>
-                    <h3 id="totalTiket" class="text-2xl sm:text-3xl font-bold text-sky-600">0</h3>
+                    <h3 id="totalTiket" class="text-2xl sm:text-3xl font-bold text-indigo-600">0</h3>
                 </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-sky-400 border border-slate-100 flex flex-col justify-center">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-sky-500 border border-slate-100 flex flex-col justify-center">
                     <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Telecollection</p>
                     <h3 id="teleRev" class="text-xl sm:text-2xl font-bold text-slate-700 mb-1">Rp 0</h3>
                     <p id="telePlg" class="text-xs sm:text-sm font-medium text-sky-500">0 Pelanggan</p>
                 </div>
-                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-sky-600 border border-slate-100 flex flex-col justify-center">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-indigo-500 border border-slate-100 flex flex-col justify-center">
                     <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Retention</p>
                     <h3 id="retRev" class="text-xl sm:text-2xl font-bold text-slate-700 mb-1">Rp 0</h3>
-                    <p id="retPlg" class="text-xs sm:text-sm font-medium text-sky-600">0 Pelanggan</p>
+                    <p id="retPlg" class="text-xs sm:text-sm font-medium text-indigo-500">0 Pelanggan</p>
                 </div>
                 <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-emerald-500 border border-slate-100 flex flex-col justify-center">
                     <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Winback</p>
@@ -159,7 +162,7 @@
 
             <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                 <h3 id="trenChartTitle" class="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-                    <svg class="w-4 h-4 text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <svg class="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                     </svg>
                     Tren Pencapaian
@@ -171,7 +174,7 @@
                 <!-- KARTU ATAS: Top Kinerja Region -->
                 <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
                     <h3 id="regionChartTitle" class="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55-.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
                         Top Kinerja Region
                     </h3>
                     <div class="overflow-y-auto table-scroll" style="max-height: 420px;">
@@ -182,7 +185,7 @@
                 <!-- KARTU BAWAH: Leaderboard Agen -->
                 <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
                     <h3 id="leaderboardTitle" class="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-                        <svg class="w-4 h-4 text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <svg class="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                         </svg>
                         Leaderboard Agen & Efektifitas
@@ -192,10 +195,10 @@
                             <thead>
                                 <tr id="leaderboardHeadRow" class="bg-slate-50 sticky top-0 z-10 border-b border-slate-100">
                                     <th class="py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase w-3/12">Agen & Region</th>
-                                    <th onclick="sortLeaderboard('outbound')" class="cursor-pointer hover:bg-slate-200 transition-colors py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-right w-2/12 border-l border-slate-200 select-none" title="Klik untuk urutkan">Outbound <span class="text-slate-400 font-bold ml-1 text-[11px]">↕</span></th>
-                                    <th onclick="sortLeaderboard('rp')" class="cursor-pointer hover:bg-slate-200 transition-colors py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-right w-3/12 border-l border-slate-200 select-none" title="Klik untuk urutkan">Rp & Pelanggan <span class="text-slate-400 font-bold ml-1 text-[11px]">↕</span></th>
-                                    <th onclick="sortLeaderboard('capaian')" class="cursor-pointer hover:bg-slate-200 transition-colors py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-right w-2/12 border-l border-slate-200 select-none" title="Klik untuk urutkan">Capaian <span class="text-slate-400 font-bold ml-1 text-[11px]">↕</span></th>
-                                    <th onclick="sortLeaderboard('efektifitas')" class="cursor-pointer hover:bg-slate-200 transition-colors py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-right w-2/12 border-l border-slate-200 select-none" title="Klik untuk urutkan">Efektifitas <span class="text-sky-600 font-black ml-1 text-[12px]">↓</span></th>
+                                    <th onclick="sortLeaderboard('outbound')" class="cursor-pointer hover:bg-slate-200 transition-colors py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-center w-2/12 border-l border-slate-200 select-none" title="Klik untuk urutkan">Outbound <span class="text-slate-400 font-bold ml-1 text-[11px]">↕</span></th>
+                                    <th onclick="sortLeaderboard('rp')" class="cursor-pointer hover:bg-slate-200 transition-colors py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-center w-3/12 border-l border-slate-200 select-none" title="Klik untuk urutkan">Rp & Pelanggan <span class="text-slate-400 font-bold ml-1 text-[11px]">↕</span></th>
+                                    <th onclick="sortLeaderboard('capaian')" class="cursor-pointer hover:bg-slate-200 transition-colors py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-center w-2/12 border-l border-slate-200 select-none" title="Klik untuk urutkan">Capaian <span class="text-slate-400 font-bold ml-1 text-[11px]">↕</span></th>
+                                    <th onclick="sortLeaderboard('efektifitas')" class="cursor-pointer hover:bg-slate-200 transition-colors py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-center w-2/12 border-l border-slate-200 select-none" title="Klik untuk urutkan">Efektifitas <span class="text-indigo-600 font-black ml-1 text-[12px]">↓</span></th>
                                 </tr>
                             </thead>
                             <tbody id="leaderboardBody" class="divide-y divide-slate-100 text-sm">
@@ -364,6 +367,7 @@
                 </div>
             </div>
 
+            <!-- GRAFIK TREN -->
             <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                 <h3 id="trenTitle" class="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
                     <svg class="w-4 h-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
@@ -374,9 +378,69 @@
                 <div class="chart-container"><canvas id="progresTrenChart"></canvas></div>
             </div>
 
+            <!-- PETA SEBARAN TUNGGAKAN AKTIF (2-LAPIS) -->
+            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                            <svg class="w-4 h-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            Peta Sebaran Tunggakan Aktif
+                        </h3>
+                        <p id="mapSubtitle" class="text-[11px] text-slate-400 mt-0.5">Menampilkan ringkasan kepadatan tunggakan aktif per area</p>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <!-- Filter KP khusus Peta -->
+                        <select id="mapFilterKp" onchange="onMapKpChange()" class="px-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-rose-500 bg-slate-50 font-semibold text-slate-700 max-w-[200px]">
+                            <option value="ALL">Semua KP</option>
+                        </select>
+
+                        <!-- Switcher Mode Peta -->
+                        <div class="bg-slate-100 p-1 rounded-xl inline-flex text-xs font-semibold border border-slate-200">
+                            <button onclick="setMapMode('ringkasan')" id="btnMapRingkasan" class="px-3 py-1.5 rounded-lg bg-white text-rose-600 shadow-sm transition-all">
+                                Ringkasan Area
+                            </button>
+                            <button onclick="setMapMode('detail')" id="btnMapDetail" class="px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-700 transition-all">
+                                Pin Pelanggan
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Banner Info / Status Peta -->
+                <div id="mapNoticeBanner" class="hidden px-3.5 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium flex items-center justify-between gap-2">
+                    <span id="mapNoticeText">Pilih Region atau KP terlebih dahulu untuk memuat pin rumah pelanggan.</span>
+                </div>
+
+                <!-- Container Peta -->
+                <div class="relative rounded-xl overflow-hidden border border-slate-200">
+                    <div id="mapSpinner" class="hidden absolute inset-0 bg-white/75 backdrop-blur-[1px] z-[1000] flex items-center justify-center">
+                        <div class="bg-white px-4 py-2.5 rounded-xl shadow-md border border-slate-100 flex items-center gap-2.5 text-xs font-semibold text-slate-700">
+                            <div class="w-4 h-4 border-2 border-rose-500 border-t-transparent rounded-full animate-spin"></div>
+                            <span id="mapSpinnerText">Memuat titik koordinat...</span>
+                        </div>
+                    </div>
+                    <div id="progresMap"></div>
+                </div>
+
+                <!-- Legenda & Statistik Peta -->
+                <div class="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 pt-1">
+                    <div id="mapLegend" class="flex flex-wrap items-center gap-3">
+                        <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> &lt; 25 Plg</span>
+                        <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-orange-500 inline-block"></span> 25 - 100 Plg</span>
+                        <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-600 inline-block"></span> &gt; 100 Plg</span>
+                    </div>
+                    <span id="mapStatsFooter" class="font-semibold text-slate-600">0 titik ditampilkan</span>
+                </div>
+            </div>
+
+            <!-- LEADERBOARD REGION -->
             <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                 <h3 class="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55-.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
                     Leaderboard Region Tertinggi
                 </h3>
                 <div>
@@ -384,7 +448,7 @@
                         <thead>
                             <tr class="bg-slate-50 border-b border-slate-100">
                                 <th class="py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase w-5/12">Region</th>
-                                <th class="py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-right w-4/12">Status Pelanggan</th>
+                                <th class="py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-center w-4/12">Status Pelanggan</th>
                                 <th class="py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-right w-3/12">Capaian</th>
                             </tr>
                         </thead>
@@ -395,292 +459,32 @@
                 </div>
             </div>
         </div>
+    </div>
 
-        =====================================================================
- PATCH HTML DASHBOARD - TAB HABIT BAYAR (data Colab versi baru)
- 4 langkah. Bagian lain (SLA 3, Progres) tidak disentuh.
-=====================================================================
-
----------------------------------------------------------------------
-LANGKAH 1 - GANTI seluruh blok <!-- WADAH 3: HABIT BAYAR --> ... sampai
-            </div> penutupnya (tepat sebelum </div> penutup #dashboardWrapper)
----------------------------------------------------------------------
-        <!-- WADAH 3: HABIT BAYAR -->
-        <div id="habitContainer" class="hidden space-y-4 sm:space-y-6 pb-8">
-            <div id="habitNotice" class="hidden p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-medium">
-                ⚠️ Format data Habit lama terdeteksi. Jalankan ulang Colab versi terbaru agar angka akurat.
-            </div>
-
-            <!-- Filter -->
-            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-wrap items-center gap-2.5">
-                <select id="habitBulan" onchange="renderHabitData()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 bg-slate-50 font-semibold text-slate-700">
-                    <option value="ALL">Semua Bulan</option>
-                </select>
-                <select id="habitTipe" onchange="renderHabitData()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-purple-500 bg-slate-50 font-semibold text-slate-700">
-                    <option value="ALL">Semua Tipe</option>
-                    <option value="prepaid">Prabayar</option>
-                    <option value="postpaid">Pascabayar</option>
-                </select>
-                <span class="text-[11px] text-slate-400">Bulan = bulan jatuh tempo tagihan (grafik) &amp; bulan bayar (borongan).</span>
-            </div>
-
-            <!-- KPI -->
-            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-l-purple-500 border border-slate-100">
-                    <p class="text-[11px] font-semibold uppercase text-slate-400 mb-1">Tagihan Lunas</p>
-                    <h3 id="hbTotal" class="text-2xl font-bold text-slate-700">0</h3>
-                </div>
-                <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-l-emerald-500 border border-slate-100">
-                    <p class="text-[11px] font-semibold uppercase text-slate-400 mb-1">Tepat Waktu (Advance + On-Time)</p>
-                    <h3 id="hbTepat" class="text-2xl font-bold text-emerald-600">-</h3>
-                </div>
-                <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-l-rose-500 border border-slate-100">
-                    <p class="text-[11px] font-semibold uppercase text-slate-400 mb-1">Telat (Grace + Isolir)</p>
-                    <h3 id="hbTelat" class="text-2xl font-bold text-rose-600">-</h3>
-                </div>
-                <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-l-sky-500 border border-slate-100">
-                    <p class="text-[11px] font-semibold uppercase text-slate-400 mb-1">Kejadian Bayar Borongan</p>
-                    <h3 id="hbBorongan" class="text-2xl font-bold text-sky-600">-</h3>
-                </div>
-            </div>
-
-            <!-- Grafik -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
-                    <h3 class="font-bold text-slate-700 mb-1">Distribusi Kecepatan Bayar</h3>
-                    <p class="text-xs text-slate-500 mb-4">Jumlah tagihan lunas, dinilai terhadap jatuh tempo periodenya masing-masing.</p>
-                    <div class="relative h-[250px] w-full"><canvas id="chartHabitKategori"></canvas></div>
-                </div>
-                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
-                    <h3 class="font-bold text-slate-700 mb-1">Top Channel Pembayaran</h3>
-                    <p class="text-xs text-slate-500 mb-4">Channel terbanyak, dipecah per kategori kecepatan bayar.</p>
-                    <div class="relative h-[250px] w-full"><canvas id="chartHabitChannel"></canvas></div>
-                </div>
-            </div>
-
-            <!-- Profil pelanggan -->
-            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
-                <h3 class="font-bold text-slate-700 mb-1">Profil Habit Pelanggan</h3>
-                <p class="text-xs text-slate-500 mb-4">Label per pelanggan dari kejadian bayar 6 bulan terakhir (tidak terpengaruh filter bulan).</p>
-                <div id="profilList" class="space-y-3"></div>
-            </div>
-
-            <!-- Watchlist -->
-            <div class="bg-gradient-to-r from-red-50 to-orange-50 p-6 rounded-2xl border border-red-100 shadow-sm flex flex-col lg:flex-row items-center justify-between gap-4">
-                <div class="flex items-start gap-4">
-                    <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center flex-shrink-0">
-                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                    </div>
-                    <div>
-                        <h3 class="font-bold text-red-800 text-lg">Watchlist: Pelanggan Anomali</h3>
-                        <p class="text-red-600 text-sm mt-1" id="teksWatchlist">Menganalisis data pelanggan...</p>
-                        <p class="text-xs text-red-500/80 mt-1">Pelanggan rutin yang bulan ini belum bayar, atau yang baru lunas setelah kena isolir.</p>
-                    </div>
-                </div>
-                <div class="flex flex-col sm:flex-row items-stretch gap-2 w-full lg:w-auto">
-                    <select id="wlFase" class="px-3 py-3 text-sm border border-red-200 rounded-xl bg-white font-semibold text-slate-700"></select>
-                    <button onclick="downloadWatchlistCSV()" id="btnDownloadWatchlist" class="flex-shrink-0 px-5 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                        Download CSV
-                    </button>
-                </div>
-            </div>
-        </div>
-
-
----------------------------------------------------------------------
-LANGKAH 2 - Tiga perubahan kecil di <script>
----------------------------------------------------------------------
-(a) GANTI baris:
-        let allData = { sla3: [], sla4: [], progres: [], habit: [], watchlistRaw: [] };
-    MENJADI:
-        let allData = { sla3: [], sla4: [], progres: [], habit: [], habitEvent: [], profil: [], watchlistRaw: [] };
-
-(b) Di fetchData(), GANTI dua baris di bawah komentar "Parsing Data Habit & Watchlist":
-        if (res.habit) allData.habit = parseMatrixToObjects(res.habit);
-        if (res.watchlist) allData.watchlistRaw = res.watchlist; ...
-    MENJADI:
-        allData.habit = res.habit ? parseMatrixToObjects(res.habit) : [];
-        allData.habitEvent = res.habitEvent ? parseMatrixToObjects(res.habitEvent) : [];
-        allData.profil = res.profil ? parseMatrixToObjects(res.profil) : [];
-        allData.watchlistRaw = res.watchlist || [];
-
-(c) Di updateDisplayWaktuSync(), TAMBAHKAN cabang ini setelah cabang `else if ((currentTab === 'sla3' || ...`:
-        else if (currentTab === 'habit') {
-            actualUpdateTime = (allData.habit[0] && allData.habit[0].Waktu_Update) ? allData.habit[0].Waktu_Update + ' WIB' : 'Mengikuti proses Colab';
-        }
-
-
----------------------------------------------------------------------
-LANGKAH 3 - HAPUS fungsi lama renderHabitData() dan downloadWatchlistCSV(),
-            LALU tempel blok ini di tempatnya
----------------------------------------------------------------------
-        const HABIT_ORDER = ['Advance Payer (Aman)', 'On-Time Payer (Lancar)', 'Grace Period Payer (Warning)', 'Isolated Payer (Telat)'];
-        const HABIT_COLOR = ['#0ea5e9', '#22c55e', '#eab308', '#ef4444'];
-        const PROFIL_ORDER = [['Disiplin (Lancar)', '#22c55e'], ['Mepet Batas (Warning)', '#eab308'], ['Sering Telat (Risiko Tinggi)', '#ef4444'], ['Data Belum Cukup', '#94a3b8']];
-
-        const ym = (v) => String(v == null ? '' : v).slice(0, 7);
-        const bulanLabel = (s) => { const p = s.split('-'); return p[1] ? `${bulanNames[Number(p[1]) - 1]} ${p[0]}` : s; };
-        const lower = (v) => String(v || '').toLowerCase();
-
-        function renderHabitData() {
-            // Peringatan kalau sheet masih format lama (belum ada kolom bulan_jatuh_tempo)
-            const legacy = allData.habit.length > 0 && !('bulan_jatuh_tempo' in allData.habit[0]);
-            document.getElementById('habitNotice').classList.toggle('hidden', !legacy);
-
-            const rows = allData.habit.map(r => ({
-                kat: r['kategori_bayar'] || 'Tidak Terdeteksi',
-                via: r['pembayaranvia'] || 'Tidak Diketahui',
-                bulan: ym(r['bulan_jatuh_tempo']),
-                tipe: lower(r['tipe_layanan']),
-                n: Number(r['jml_tagihan'] ?? r['total_pelanggan']) || 0   // jml_tagihan bisa dijumlah; total_pelanggan tidak
-            }));
-            const events = allData.habitEvent;
-
-            // Dropdown bulan (pilihan sebelumnya dipertahankan)
-            const sel = document.getElementById('habitBulan'), prev = sel.value || 'ALL';
-            const months = [...new Set([...rows.map(r => r.bulan), ...events.map(e => ym(e['bulan_bayar']))].filter(Boolean))].sort().reverse();
-            sel.innerHTML = '<option value="ALL">Semua Bulan</option>' + months.map(m => `<option value="${m}">${bulanLabel(m)}</option>`).join('');
-            sel.value = months.includes(prev) ? prev : 'ALL';
-
-            const bulan = sel.value, tipe = document.getElementById('habitTipe').value;
-            const okTipe = (t) => tipe === 'ALL' || t === tipe;
-
-            // Rekap tagihan
-            const byKat = {}, byVia = {};
-            let total = 0;
-            rows.filter(r => (bulan === 'ALL' || r.bulan === bulan) && okTipe(r.tipe)).forEach(r => {
-                byKat[r.kat] = (byKat[r.kat] || 0) + r.n;
-                byVia[r.via] = byVia[r.via] || {};
-                byVia[r.via][r.kat] = (byVia[r.via][r.kat] || 0) + r.n;
-                total += r.n;
-            });
-
-            // Rekap kejadian bayar (borongan)
-            let evAll = 0, evBor = 0;
-            events.filter(e => (bulan === 'ALL' || ym(e['bulan_bayar']) === bulan) && okTipe(lower(e['tipe_layanan']))).forEach(e => {
-                const k = Number(e['jml_kejadian_bayar']) || 0;
-                evAll += k;
-                if (e['jenis_bayar'] === 'Borongan') evBor += k;
-            });
-
-            // KPI
-            const pct = (a, b) => b > 0 ? (a / b * 100).toFixed(1) + '%' : '-';
-            const tepat = (byKat[HABIT_ORDER[0]] || 0) + (byKat[HABIT_ORDER[1]] || 0);
-            const telat = (byKat[HABIT_ORDER[2]] || 0) + (byKat[HABIT_ORDER[3]] || 0);
-            document.getElementById('hbTotal').innerText = total.toLocaleString('id-ID');
-            document.getElementById('hbTepat').innerText = pct(tepat, total);
-            document.getElementById('hbTelat').innerText = pct(telat, total);
-            document.getElementById('hbBorongan').innerText = pct(evBor, evAll);
-
-            // Donat kategori (warna terikat ke kategori, bukan ke urutan abjad)
-            const kats = HABIT_ORDER.filter(k => byKat[k]);
-            if (chartKategoriInstance) chartKategoriInstance.destroy();
-            chartKategoriInstance = new Chart(document.getElementById('chartHabitKategori'), {
-                type: 'doughnut',
-                data: { labels: kats, datasets: [{ data: kats.map(k => byKat[k]), backgroundColor: kats.map(k => HABIT_COLOR[HABIT_ORDER.indexOf(k)]), borderWidth: 0 }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
-            });
-
-            // Bar channel (stacked per kategori), top 7
-            const vias = Object.entries(byVia)
-                .map(([v, m]) => [v, Object.values(m).reduce((a, b) => a + b, 0)])
-                .sort((a, b) => b[1] - a[1]).slice(0, 7).map(x => x[0]);
-            if (chartChannelInstance) chartChannelInstance.destroy();
-            chartChannelInstance = new Chart(document.getElementById('chartHabitChannel'), {
-                type: 'bar',
-                data: { labels: vias, datasets: HABIT_ORDER.map((k, i) => ({ label: k, data: vias.map(v => byVia[v][k] || 0), backgroundColor: HABIT_COLOR[i] })) },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
-                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }
-                }
-            });
-
-            // Profil pelanggan (hanya filter tipe; sudah diringkas Apps Script)
-            const pf = {}; let pfTotal = 0;
-            allData.profil.filter(p => okTipe(lower(p['tipe_layanan']))).forEach(p => {
-                const n = Number(p['jml_pelanggan']) || 0;
-                pf[p['label_habit']] = (pf[p['label_habit']] || 0) + n;
-                pfTotal += n;
-            });
-            document.getElementById('profilList').innerHTML = pfTotal ? PROFIL_ORDER.map(([label, color]) => {
-                const n = pf[label] || 0, w = n / pfTotal * 100;
-                return `<div>
-                    <div class="flex justify-between text-xs mb-1"><span class="font-semibold text-slate-600">${escapeHtml(label)}</span><span class="text-slate-500">${n.toLocaleString('id-ID')} pelanggan (${w.toFixed(1)}%)</span></div>
-                    <div class="w-full bg-slate-100 rounded-full h-2.5"><div class="h-2.5 rounded-full" style="width:${w.toFixed(1)}%;background:${color}"></div></div>
-                </div>`;
-            }).join('') : '<p class="text-xs text-slate-400">Belum ada data profil. Jalankan Colab versi terbaru.</p>';
-
-            renderWatchlistInfo();
-        }
-
-        function getWatchlist() {
-            const w = allData.watchlistRaw || [];
-            if (w.length < 2) return { head: [], rows: [] };
-            return { head: w[0].map(h => String(h).trim()), rows: w.slice(1) };
-        }
-
-        function renderWatchlistInfo() {
-            const { head, rows } = getWatchlist();
-            const iF = head.indexOf('fase_penagihan');
-            const cnt = {};
-            rows.forEach(r => { const k = iF >= 0 ? (r[iF] || 'Lainnya') : 'Semua'; cnt[k] = (cnt[k] || 0) + 1; });
-
-            const sel = document.getElementById('wlFase'), prev = sel.value || 'ALL';
-            sel.innerHTML = `<option value="ALL">Semua fase (${rows.length.toLocaleString('id-ID')})</option>` +
-                Object.entries(cnt).map(([k, n]) => `<option value="${escapeHtml(k)}">${escapeHtml(k)} (${n.toLocaleString('id-ID')})</option>`).join('');
-            sel.value = (prev in cnt) ? prev : 'ALL';
-
-            document.getElementById('teksWatchlist').innerHTML = rows.length
-                ? `Ditemukan <b>${rows.length.toLocaleString('id-ID')} data</b> prioritas untuk di-follow up.`
-                : 'Luar biasa! Tidak ada pelanggan anomali (rutin menunggak) saat ini.';
-            document.getElementById('btnDownloadWatchlist').disabled = rows.length === 0;
-        }
-
-        function downloadWatchlistCSV() {
-            const { head, rows } = getWatchlist();
-            if (!rows.length) { alert("Tidak ada data anomali untuk didownload."); return; }
-
-            const fase = document.getElementById('wlFase').value, iF = head.indexOf('fase_penagihan');
-            const pick = (fase === 'ALL' || iF < 0) ? rows : rows.filter(r => String(r[iF]) === fase);
-            const esc = (v) => { const c = v == null ? '' : String(v).replace(/"/g, '""'); return /["\n,]/.test(c) ? `"${c}"` : c; };
-            const csv = [head, ...pick].map(r => r.map(esc).join(',')).join('\n');
-
-            const url = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' }));
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `Watchlist_Anomali_${new Date().toISOString().slice(0, 10)}.csv`;
-            document.body.appendChild(link); link.click(); document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-        }
-
-
----------------------------------------------------------------------
-LANGKAH 4 - Urutan deploy
----------------------------------------------------------------------
-1. Jalankan Colab versi baru sampai selesai (sheet DataHabitEvent & DataProfilHabit terbentuk).
-2. Tempel patch Apps Script -> Deploy versi baru -> jalankan hapusCacheManual() sekali.
-3. Ganti HTML sesuai Langkah 1-3, lalu tekan "Sinkronkan Data" di dashboard.
     <script>
-        // ⚠️ PASTIKAN URL DI BAWAH INI ADALAH URL APPS SCRIPT ANDA YANG AKTIF (YANG BARU DI-DEPLOY)
         const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxohEYzE3Th9LRITFZHlK4IAmsXN-byA88nTytdF2PQj2z8A82bicIJUOZliE1IDjo2WA/exec";
         
         Chart.defaults.scale.grid.color = '#f1f5f9'; 
         Chart.defaults.font.family = "'Inter', sans-serif"; 
         
-        // VARIABEL GLOBAL DIPERBARUI
-        let allData = { sla3: [], sla4: [], progres: [], habit: [], watchlistRaw: [] };
+        let allData = { sla3: [], sla4: [], progres: [], petaRingkasan: [] };
         let rawData = [];
         let currentTab = 'sla3';
         let currentBillingType = 'prepaid';
         let trenChartInst = null, regionChartInst = null, progresTrenChartInst = null;
-        let chartKategoriInstance = null, chartChannelInstance = null;
         
+        // State & Instance Peta Leaflet
+        let progresMapInst = null;
+        let mapLayerGroup = null;
+        let currentMapMode = 'ringkasan'; // 'ringkasan' | 'detail'
+        let detailPinCache = {};
+        let lastKpRegionKey = '';
+
         let lbSortCol = 'default';
         let lbSortAsc = false;
         let lastFilteredData = [];
 
+        // State filter independen per tipe tagihan
         const filterState = {
             prepaid: { periode: 'ALL', region: 'ALL', startDate: '', endDate: '' },
             postpaid: { periode: 'ALL', region: 'ALL', startDate: '', endDate: '' },
@@ -830,14 +634,11 @@ LANGKAH 4 - Urutan deploy
             const res = await response.json();
             if (res.error) throw new Error(res.error);
 
-            // Parsing Data Utama
-            if (res.sla3) allData.sla3 = parseMatrixToObjects(res.sla3).map(row => { row['Tanggal'] = fixTimezone(row['Tanggal']); return row; });
-            if (res.sla4) allData.sla4 = parseMatrixToObjects(res.sla4).map(row => { row['Tanggal'] = fixTimezone(row['Tanggal']); return row; });
-            if (res.progres) allData.progres = parseMatrixToObjects(res.progres).map(row => { row['Tanggal_Bayar_Saja'] = fixTimezone(row['Tanggal_Bayar_Saja']); return row; });
-            
-            // Parsing Data Habit & Watchlist (Data Baru)
-            if (res.habit) allData.habit = parseMatrixToObjects(res.habit);
-            if (res.watchlist) allData.watchlistRaw = res.watchlist; // Disimpan versi aslinya (array of array) untuk di-download jadi CSV
+            allData.sla3 = parseMatrixToObjects(res.sla3).map(row => { row['Tanggal'] = fixTimezone(row['Tanggal']); return row; });
+            allData.sla4 = parseMatrixToObjects(res.sla4).map(row => { row['Tanggal'] = fixTimezone(row['Tanggal']); return row; });
+            allData.progres = parseMatrixToObjects(res.progres).map(row => { row['Tanggal_Bayar_Saja'] = fixTimezone(row['Tanggal_Bayar_Saja']); return row; });
+            allData.petaRingkasan = parseMatrixToObjects(res.petaRingkasan || []);
+            if (forceRefresh) detailPinCache = {};
 
             updateDisplayWaktuSync();
         }
@@ -878,26 +679,23 @@ LANGKAH 4 - Urutan deploy
         }
 
         /* ==========================================================
-            TAB UTAMA & TAB HABIT (BARU)
+            TAB UTAMA
         ========================================================== */
         function switchTab(tab) {
             triggerActionAnimation(() => {
                 currentTab = tab;
-                const btn3 = document.getElementById('btnSla3'), btnP = document.getElementById('btnProgres'), btnH = document.getElementById('btnHabit');
-                const slaBox = document.getElementById('slaContainer'), progBox = document.getElementById('progresContainer'), habitBox = document.getElementById('habitContainer');
+                const btn3 = document.getElementById('btnSla3'), btnP = document.getElementById('btnProgres');
+                const slaBox = document.getElementById('slaContainer'), progBox = document.getElementById('progresContainer');
 
-                const activeSla = "flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-sky-600 text-white text-center";
+                const activeSla = "flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-indigo-600 text-white text-center";
                 const inactiveSla = "flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 text-center";
                 const activeProg = "flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-rose-500 text-white text-center flex items-center justify-center gap-2";
                 const inactiveProg = "flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-white text-slate-600 border border-slate-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-center flex items-center justify-center gap-2";
-                const activeHabit = "flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-purple-600 text-white text-center flex items-center justify-center gap-2";
-                const inactiveHabit = "flex-shrink-0 whitespace-nowrap w-auto px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm bg-white text-slate-600 border border-slate-200 hover:bg-purple-50 hover:text-purple-600 hover:border-purple-200 text-center flex items-center justify-center gap-2";
 
-                btn3.className = inactiveSla; btnP.className = inactiveProg; btnH.className = inactiveHabit;
-                slaBox.classList.add('hidden'); progBox.classList.add('hidden'); habitBox.classList.add('hidden');
+                btn3.className = inactiveSla; btnP.className = inactiveProg;
 
                 if (tab === 'sla3' || tab === 'sla4') {
-                    slaBox.classList.remove('hidden');
+                    slaBox.classList.remove('hidden'); progBox.classList.add('hidden');
                     if (tab === 'sla3') { btn3.className = activeSla; rawData = allData.sla3; }
 
                     const periodSelect = document.getElementById('filterPeriodeSla');
@@ -916,135 +714,19 @@ LANGKAH 4 - Urutan deploy
                     setDefaultSlaDates();
                     applyFilterWithoutAnimation();
                 } else if (tab === 'progres') {
-                    btnP.className = activeProg; progBox.classList.remove('hidden');
+                    btnP.className = activeProg; slaBox.classList.add('hidden'); progBox.classList.remove('hidden');
                     initProgresTab();
-                } else if (tab === 'habit') {
-                    btnH.className = activeHabit; habitBox.classList.remove('hidden');
-                    renderHabitData();
+                    setTimeout(() => {
+                        if (progresMapInst) progresMapInst.invalidateSize();
+                    }, 120);
                 }
 
                 updateDisplayWaktuSync();
             });
         }
 
-        // FUNGSI HABIT BAYAR
-        function renderHabitData() {
-            const dataHabit = allData.habit;
-            const dataWatchlist = allData.watchlistRaw;
-            
-            const teksWatchlist = document.getElementById("teksWatchlist");
-            const btnDownload = document.getElementById("btnDownloadWatchlist");
-            
-            // Watchlist count (kurangi 1 untuk header)
-            const jumlahAnomali = (dataWatchlist && dataWatchlist.length > 1) ? dataWatchlist.length - 1 : 0;
-            
-            if (jumlahAnomali > 0) {
-                teksWatchlist.innerHTML = `Ditemukan <b>${jumlahAnomali} pelanggan</b> prioritas untuk di-follow up hari ini.`;
-                btnDownload.disabled = false;
-            } else {
-                teksWatchlist.innerHTML = "Luar biasa! Tidak ada pelanggan anomali (rutin menunggak) saat ini.";
-                btnDownload.disabled = true;
-            }
-
-            if (!dataHabit || dataHabit.length === 0) return;
-
-            const rekapKategori = {};
-            const rekapChannel = {};
-
-            dataHabit.forEach(row => {
-                const kategori = row['kategori_bayar'] || "Tidak Diketahui";
-                const channel = row['pembayaranvia'] || "Tidak Terdeteksi";
-                const totalPlg = Number(row['total_pelanggan']) || 0;
-
-                rekapKategori[kategori] = (rekapKategori[kategori] || 0) + totalPlg;
-                rekapChannel[channel] = (rekapChannel[channel] || 0) + totalPlg;
-            });
-
-            // Grafik Donat Kategori
-            const labelKategori = Object.keys(rekapKategori).sort();
-            const dataKategori = labelKategori.map(k => rekapKategori[k]);
-            
-            const ctxKat = document.getElementById('chartHabitKategori').getContext('2d');
-            if (chartKategoriInstance) chartKategoriInstance.destroy();
-            
-            chartKategoriInstance = new Chart(ctxKat, {
-                type: 'doughnut',
-                data: {
-                    labels: labelKategori,
-                    datasets: [{
-                        data: dataKategori,
-                        backgroundColor: ['#22c55e', '#eab308', '#ef4444', '#94a3b8'], // Hijau, Kuning, Merah, Abu
-                        borderWidth: 0
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { position: 'right' } }
-                }
-            });
-
-            // Grafik Bar Channel Top 7
-            const sortedChannel = Object.entries(rekapChannel).sort((a, b) => b[1] - a[1]).slice(0, 7);
-            const labelChannel = sortedChannel.map(item => item[0]);
-            const dataChannel = sortedChannel.map(item => item[1]);
-
-            const ctxChan = document.getElementById('chartHabitChannel').getContext('2d');
-            if (chartChannelInstance) chartChannelInstance.destroy();
-            
-            chartChannelInstance = new Chart(ctxChan, {
-                type: 'bar',
-                data: {
-                    labels: labelChannel,
-                    datasets: [{
-                        label: 'Jumlah Pelanggan',
-                        data: dataChannel,
-                        backgroundColor: '#8b5cf6', // Ungu
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true } }
-                }
-            });
-        }
-
-        function downloadWatchlistCSV() {
-            const dataWatchlist = allData.watchlistRaw;
-            if (!dataWatchlist || dataWatchlist.length <= 1) {
-                alert("Tidak ada data anomali untuk didownload.");
-                return;
-            }
-
-            let csvContent = "";
-            dataWatchlist.forEach(rowArray => {
-                let row = rowArray.map(item => {
-                    let cell = (item === null || item === undefined) ? "" : String(item);
-                    cell = cell.replace(/"/g, '""'); 
-                    if (cell.search(/("|,|\n)/g) >= 0) {
-                        cell = `"${cell}"`; 
-                    }
-                    return cell;
-                });
-                csvContent += row.join(",") + "\n";
-            });
-
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.setAttribute("href", url);
-            const tgl = new Date().toISOString().slice(0, 10);
-            link.setAttribute("download", `Watchlist_Anomali_${tgl}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
         /* ==========================================================
-            TAB SLA 3 & SLA 4 (LAMA)
+            TAB SLA 3 & SLA 4
         ========================================================== */
         function setDefaultSlaDates() {
             const dates = [...new Set(rawData.map(row => row['Tanggal']).filter(Boolean))].sort();
@@ -1092,7 +774,6 @@ LANGKAH 4 - Urutan deploy
 
             renderSlaKpi(filtered);
             renderTrenChart(filtered);
-            
             renderRegionChart(filtered, selectedRegion);
             
             lastFilteredData = filtered; 
@@ -1134,7 +815,7 @@ LANGKAH 4 - Urutan deploy
             });
 
             let keys, labels;
-            const svgIcon = `<svg class="w-4 h-4 text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>`;
+            const svgIcon = `<svg class="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>`;
             
             if (daily) {
                 keys = Object.keys(map).sort();
@@ -1150,7 +831,7 @@ LANGKAH 4 - Urutan deploy
 
             trenChartInst = new Chart(document.getElementById('trenChart'), {
                 type: 'line',
-                data: { labels, datasets: [{ data: keys.map(k => map[k]), borderColor: '#0284c7', backgroundColor: 'rgba(2,132,199,0.1)', borderWidth: 2, fill: true, tension: 0.3 }] },
+                data: { labels, datasets: [{ data: keys.map(k => map[k]), borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,0.1)', borderWidth: 2, fill: true, tension: 0.3 }] },
                 options: {
                     maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false }, 
@@ -1178,12 +859,12 @@ LANGKAH 4 - Urutan deploy
             document.getElementById('regionChartHost').style.height = Math.max(320, sorted.length * 30) + 'px';
 
             const titleEl = document.getElementById('regionChartTitle');
-            const svgTrophy = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>`;
+            const svgTrophy = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55-.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>`;
             if (titleEl) {
                 titleEl.innerHTML = isAllRegion ? `${svgTrophy} Top Kinerja Region` : `${svgTrophy} Top Kinerja KP - Region ${selectedRegion}`;
             }
 
-            const colors = sorted.map(() => isAllRegion ? '#0ea5e9' : '#10b981');
+            const colors = sorted.map(() => isAllRegion ? '#6366f1' : '#10b981');
 
             regionChartInst = new Chart(document.getElementById('regionChart'), {
                 type: 'bar',
@@ -1194,10 +875,7 @@ LANGKAH 4 - Urutan deploy
                 options: {
                     indexAxis: 'y',
                     maintainAspectRatio: false,
-                    interaction: {
-                        mode: 'y', 
-                        intersect: false
-                    },
+                    interaction: { mode: 'y', intersect: false },
                     plugins: { 
                         legend: { display: false }, 
                         tooltip: { callbacks: { label: (ctx) => ' ' + formatRupiah(ctx.parsed.x) } } 
@@ -1280,41 +958,41 @@ LANGKAH 4 - Urutan deploy
                     return `<svg class="w-3.5 h-3.5 ml-1.5 text-slate-400 group-hover:text-slate-700 transition-colors duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>`;
                 }
                 return lbSortAsc 
-                    ? `<svg class="w-4 h-4 ml-1.5 text-sky-600 drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 15l7-7 7 7" /></svg>` 
-                    : `<svg class="w-4 h-4 ml-1.5 text-sky-600 drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7" /></svg>`;
+                    ? `<svg class="w-4 h-4 ml-1.5 text-indigo-600 drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 15l7-7 7 7" /></svg>` 
+                    : `<svg class="w-4 h-4 ml-1.5 text-indigo-600 drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 9l-7 7-7-7" /></svg>`;
             };
 
             const getHeaderClass = (colName, baseClass) => {
                 const isActive = activeSort === colName;
-                const activeStyle = isActive ? 'bg-sky-50/60 text-sky-700 shadow-[inset_0_-2px_0_#0284c7]' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700';
+                const activeStyle = isActive ? 'bg-indigo-50/60 text-indigo-700 shadow-[inset_0_-2px_0_#4f46e5]' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700';
                 return `group cursor-pointer transition-all duration-200 py-3 px-3 text-[11px] sm:text-xs font-bold uppercase select-none ${baseClass} ${activeStyle}`;
             };
 
             if (theadRow) {
                 if (isModeEfektifitas) {
                     theadRow.innerHTML = `
-                        <th class="py-3 px-3 text-[11px] sm:text-xs font-bold text-slate-500 uppercase w-3/12 border-b border-slate-200 text-left">Agen & Region</th>
-                        <th onclick="sortLeaderboard('outbound')" class="${getHeaderClass('outbound', 'w-2/12 border-l border-b border-slate-200 text-right')}" title="Urutkan Outbound">
-                            Outbound ${getSortIcon('outbound')}
+                        <th class="py-3 px-3 text-[11px] sm:text-xs font-bold text-slate-500 uppercase w-3/12 border-b border-slate-200">Agen & Region</th>
+                        <th onclick="sortLeaderboard('outbound')" class="${getHeaderClass('outbound', 'w-2/12 border-l border-b border-slate-200')}" title="Urutkan Outbound">
+                            <div class="flex items-center justify-center">Outbound ${getSortIcon('outbound')}</div>
                         </th>
-                        <th onclick="sortLeaderboard('rp')" class="${getHeaderClass('rp', 'w-3/12 border-l border-b border-slate-200 text-right')}" title="Urutkan Rp & Pelanggan">
-                            Rp & Plg ${getSortIcon('rp')}
+                        <th onclick="sortLeaderboard('rp')" class="${getHeaderClass('rp', 'w-3/12 border-l border-b border-slate-200')}" title="Urutkan Rp & Pelanggan">
+                            <div class="flex items-center justify-center">Rp & Plg ${getSortIcon('rp')}</div>
                         </th>
-                        <th onclick="sortLeaderboard('capaian')" class="${getHeaderClass('capaian', 'w-2/12 border-l border-b border-slate-200 text-right')}" title="Urutkan Pencapaian">
-                            Pencapaian ${getSortIcon('capaian')}
+                        <th onclick="sortLeaderboard('capaian')" class="${getHeaderClass('capaian', 'w-2/12 border-l border-b border-slate-200')}" title="Urutkan Pencapaian">
+                            <div class="flex items-center justify-center">Pencapaian ${getSortIcon('capaian')}</div>
                         </th>
-                        <th onclick="sortLeaderboard('efektifitas')" class="${getHeaderClass('efektifitas', 'w-2/12 border-l border-b border-slate-200 text-right')}" title="Urutkan Efektifitas">
-                            Efektifitas ${getSortIcon('efektifitas')}
+                        <th onclick="sortLeaderboard('efektifitas')" class="${getHeaderClass('efektifitas', 'w-2/12 border-l border-b border-slate-200')}" title="Urutkan Efektifitas">
+                            <div class="flex items-center justify-center">Efektifitas ${getSortIcon('efektifitas')}</div>
                         </th>
                     `;
                 } else {
                     theadRow.innerHTML = `
-                        <th class="py-3 px-3 text-[11px] sm:text-xs font-bold text-slate-500 uppercase w-5/12 border-b border-slate-200 text-left">Agen & Region</th>
-                        <th onclick="sortLeaderboard('rp')" class="${getHeaderClass('rp', 'w-4/12 border-l border-b border-slate-200 text-right')}" title="Urutkan Rp & Pelanggan">
-                            Rp & Pelanggan ${getSortIcon('rp')}
+                        <th class="py-3 px-3 text-[11px] sm:text-xs font-bold text-slate-500 uppercase w-5/12 border-b border-slate-200">Agen & Region</th>
+                        <th onclick="sortLeaderboard('rp')" class="${getHeaderClass('rp', 'w-4/12 border-l border-b border-slate-200')}" title="Urutkan Rp & Pelanggan">
+                            <div class="flex items-center justify-center">Rp & Pelanggan ${getSortIcon('rp')}</div>
                         </th>
-                        <th onclick="sortLeaderboard('capaian')" class="${getHeaderClass('capaian', 'w-3/12 border-l border-b border-slate-200 text-right')}" title="Urutkan Pencapaian">
-                            Capaian ${getSortIcon('capaian')}
+                        <th onclick="sortLeaderboard('capaian')" class="${getHeaderClass('capaian', 'w-3/12 border-l border-b border-slate-200')}" title="Urutkan Pencapaian">
+                            <div class="flex items-center justify-center">Capaian ${getSortIcon('capaian')}</div>
                         </th>
                     `;
                 }
@@ -1347,10 +1025,10 @@ LANGKAH 4 - Urutan deploy
                         ? `<div class="text-[11px] sm:text-sm font-bold text-slate-600">${row.outbound.toLocaleString('id-ID')}</div><div class="text-[11px] text-slate-400 font-medium mt-0.5">Panggilan</div>`
                         : `<span class="text-slate-300 font-medium">-</span>`;
 
-                    const getCellBg = (colName) => activeSort === colName ? 'bg-sky-50/20' : '';
+                    const getCellBg = (colName) => activeSort === colName ? 'bg-indigo-50/20' : '';
 
                     return `<tr class="animate-row hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0" style="animation-delay: ${Math.min(index, 20) * 30}ms;">
-                        <td class="py-2 px-3 w-3/12 text-left">
+                        <td class="py-2 px-3 w-3/12">
                             <div class="flex items-start space-x-1 sm:space-x-2">
                                 <span class="flex-shrink-0 mt-0.5">${medal}</span>
                                 <div class="pt-0.5">
@@ -1359,23 +1037,23 @@ LANGKAH 4 - Urutan deploy
                                 </div>
                             </div>
                         </td>
-                        <td class="py-2 px-3 w-2/12 text-right align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('outbound')}">${renderOutboundTeks}</td>
-                        <td class="py-2 px-3 w-3/12 text-right align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('rp')}">
+                        <td class="py-2 px-3 w-2/12 text-center align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('outbound')}">${renderOutboundTeks}</td>
+                        <td class="py-2 px-3 w-3/12 text-center align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('rp')}">
                             <div class="text-[11px] sm:text-sm font-semibold text-slate-700">${formatRupiah(row.rp)}</div>
                             <div class="text-[11px] text-slate-400 font-medium mt-0.5">${row.plg.toLocaleString('id-ID')} plg</div>
                         </td>
-                        <td class="py-2 px-3 w-2/12 text-right align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('capaian')}">
+                        <td class="py-2 px-3 w-2/12 text-center align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('capaian')}">
                             <div class="inline-block px-2 py-1 rounded-md text-xs font-bold shadow-sm ${badgeCapaian}">${pctCapaian.toFixed(1)}%</div>
                         </td>
-                        <td class="py-2 px-3 w-2/12 text-right align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('efektifitas')}">${renderEfektifitas}</td>
+                        <td class="py-2 px-3 w-2/12 text-center align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('efektifitas')}">${renderEfektifitas}</td>
                     </tr>`;
                 } else {
                     const pct = actualTargetRp > 0 ? (row.rp / actualTargetRp) * 100 : 0;
                     const badgeClass = pct >= 100 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700";
-                    const getCellBg = (colName) => activeSort === colName ? 'bg-sky-50/20' : '';
+                    const getCellBg = (colName) => activeSort === colName ? 'bg-indigo-50/20' : '';
 
                     return `<tr class="animate-row hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0" style="animation-delay: ${Math.min(index, 20) * 30}ms;">
-                        <td class="py-2 px-3 w-5/12 text-left">
+                        <td class="py-2 px-3 w-5/12">
                             <div class="flex items-start space-x-2 sm:space-x-3">
                                 <span class="flex-shrink-0 mt-0.5">${medal}</span>
                                 <div class="pt-0.5">
@@ -1384,7 +1062,7 @@ LANGKAH 4 - Urutan deploy
                                 </div>
                             </div>
                         </td>
-                        <td class="py-2 px-3 w-4/12 text-right align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('rp')}">
+                        <td class="py-2 px-3 w-4/12 text-center align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('rp')}">
                             <div class="text-[11px] sm:text-sm font-semibold text-slate-700">${formatRupiah(row.rp)}</div>
                             <div class="text-[11px] text-slate-400 font-medium mt-0.5">${row.plg.toLocaleString('id-ID')} pelanggan</div>
                         </td>
@@ -1400,7 +1078,7 @@ LANGKAH 4 - Urutan deploy
         }
 
         /* ==========================================================
-            TAB PROGRES TAGIHAN (LAMA)
+            TAB PROGRES TAGIHAN
         ========================================================== */
         const isLunasRow = (row) => String(row['Status'] || '').trim().toUpperCase() === 'LUNAS';
         const hasPayDate = (row) => { const t = row['Tanggal_Bayar_Saja']; return !!t && t !== 'Belum Bayar'; };
@@ -1426,8 +1104,9 @@ LANGKAH 4 - Urutan deploy
 
             filterState.prepaid.periode = prepaidPeriods.length > 0 ? prepaidPeriods[0] : 'ALL';
             filterState.postpaid.periode = postpaidPeriods.length > 0 ? postpaidPeriods[0] : 'ALL';
-            filterState.all.periode = 'ALL'; 
+            filterState.all.periode = 'ALL';
 
+            initLeafletMap();
             setBillingType('prepaid', false);
         }
 
@@ -1437,8 +1116,8 @@ LANGKAH 4 - Urutan deploy
             const inactClass = "px-5 py-2.5 rounded-lg text-slate-500 hover:text-slate-700 transition-all flex-shrink-0 sm:flex-none text-center whitespace-nowrap";
 
             document.getElementById('btnPrepaid').className = type === 'prepaid' ? actClass : inactClass;
-            document.getElementById('btnPostpaid').className = type === 'postpaid' ? actClass.replace('text-rose-600', 'text-sky-600') : inactClass;
-            document.getElementById('btnAllType').className = type === 'all' ? actClass.replace('text-rose-600', 'text-indigo-600') : inactClass;
+            document.getElementById('btnPostpaid').className = type === 'postpaid' ? actClass.replace('text-rose-600', 'text-indigo-600') : inactClass;
+            document.getElementById('btnAllType').className = type === 'all' ? actClass.replace('text-rose-600', 'text-sky-600') : inactClass;
 
             const titleTarget = document.getElementById('titleTarget');
             if (type === 'prepaid') titleTarget.innerText = "Target Tagihan Prabayar (Tgl 25)";
@@ -1484,6 +1163,7 @@ LANGKAH 4 - Urutan deploy
             document.getElementById('progEndDate').value = '';
             document.getElementById('progFilterRegion').value = 'ALL';
             document.getElementById('filterPeriode').value = defaultPeriod;
+            document.getElementById('mapFilterKp').value = 'ALL';
             
             filterState[currentBillingType] = {
                 periode: defaultPeriod,
@@ -1600,7 +1280,6 @@ LANGKAH 4 - Urutan deploy
                 currDate.setMonth(currDate.getMonth() - 1);
                 const prevPeriod = `${bulanNames[currDate.getMonth()]} ${currDate.getFullYear()}`;
 
-                const typeFilteredData = allData.progres.filter(rowMatchesBillingType);
                 const allPeriodsForType = [...new Set(typeFilteredData.map(r => r['Periode']).filter(Boolean))];
                 allPeriodsForType.sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
                 const latestPeriod = allPeriodsForType.length > 0 ? allPeriodsForType[0] : "";
@@ -1616,12 +1295,8 @@ LANGKAH 4 - Urutan deploy
                     let minCurrentDate = "";
                     boardBaseData.forEach(r => {
                         if (isLunasRow(r) && hasPayDate(r)) {
-                            if (!maxCurrentDate || r['Tanggal_Bayar_Saja'] > maxCurrentDate) {
-                                maxCurrentDate = r['Tanggal_Bayar_Saja'];
-                            }
-                            if (!minCurrentDate || r['Tanggal_Bayar_Saja'] < minCurrentDate) {
-                                minCurrentDate = r['Tanggal_Bayar_Saja'];
-                            }
+                            if (!maxCurrentDate || r['Tanggal_Bayar_Saja'] > maxCurrentDate) maxCurrentDate = r['Tanggal_Bayar_Saja'];
+                            if (!minCurrentDate || r['Tanggal_Bayar_Saja'] < minCurrentDate) minCurrentDate = r['Tanggal_Bayar_Saja'];
                         }
                     });
                     
@@ -1645,7 +1320,6 @@ LANGKAH 4 - Urutan deploy
                 momSummaryCard.classList.remove('hidden');
 
                 let subText = "";
-                
                 if (startStr || endStr) {
                     const sId = prevStartStr ? prevStartStr.split('-').reverse().join('/') : 'Awal';
                     const eId = prevEndStr ? prevEndStr.split('-').reverse().join('/') : 'Akhir';
@@ -1692,23 +1366,24 @@ LANGKAH 4 - Urutan deploy
                               
                 const isSelected = selectedRegion !== 'ALL' && row.region.toUpperCase() === selectedRegion.toUpperCase();
                 const rowHighlight = isSelected ? 'bg-rose-50/80 font-medium' : '';
-                
                 const badgeClass = row.pct >= 100 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700";
                 
                 tbodyHtml += `<tr class="animate-row hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0 ${rowHighlight}" style="animation-delay: ${Math.min(index, 20) * 30}ms;">
-                        <td class="py-2 px-3 w-5/12 text-left">
+                        <td class="py-2 px-3 w-5/12">
                             <div class="flex items-start space-x-2 sm:space-x-3">
                                 <span class="flex-shrink-0 mt-0.5">${medal}</span>
                                 <div class="font-bold text-slate-700 leading-tight text-[11px] sm:text-sm pt-0.5">${escapeHtml(row.region)}</div>
                             </div>
                         </td>
-                        <td class="py-2 px-3 w-4/12 text-right align-middle whitespace-nowrap"><div class="text-[11px] sm:text-sm font-semibold text-slate-700">${row.lunasPlg.toLocaleString('id-ID')}</div><div class="text-[11px] text-slate-400 font-medium mt-0.5">dari ${row.targetPlg.toLocaleString('id-ID')}</div></td>
+                        <td class="py-2 px-3 w-4/12 text-center align-middle whitespace-nowrap"><div class="text-[11px] sm:text-sm font-semibold text-slate-700">${row.lunasPlg.toLocaleString('id-ID')}</div><div class="text-[11px] text-slate-400 font-medium mt-0.5">dari ${row.targetPlg.toLocaleString('id-ID')}</div></td>
                         <td class="py-2 px-3 w-3/12 text-right align-middle whitespace-nowrap"><div class="inline-block px-2 py-1 rounded-md text-xs sm:text-sm font-bold shadow-sm ${badgeClass}">${row.pct.toFixed(1)}%</div></td>
                     </tr>`;
             });
             document.getElementById('progresBody').innerHTML = tbodyHtml || '<tr><td colspan="3" class="p-4 text-center text-slate-400">Belum ada data untuk kriteria ini</td></tr>';
 
             renderProgresTrendChartFromData(cardBaseData, selectedPeriod, selectedRegion, startStr, endStr);
+            updateMapKpDropdown(selectedRegion);
+            renderProgresMap();
         }
 
         function renderProgresTrendChartFromData(dataRows, selectedPeriod, selectedRegion, startStr, endStr) {
@@ -1754,7 +1429,7 @@ LANGKAH 4 - Urutan deploy
             document.getElementById('trenTitle').innerHTML = `${svgChartProg} ${titleText}`;
 
             let lineCol = '#f43f5e', bgCol = 'rgba(244, 63, 94, 0.1)';
-            if (currentBillingType === 'postpaid') { lineCol = '#0284c7'; bgCol = 'rgba(2, 132, 199, 0.1)'; }
+            if (currentBillingType === 'postpaid') { lineCol = '#8b5cf6'; bgCol = 'rgba(139, 92, 246, 0.1)'; }
             else if (currentBillingType === 'all') { lineCol = '#0ea5e9'; bgCol = 'rgba(14, 165, 233, 0.1)'; }
 
             progresTrenChartInst = new Chart(document.getElementById('progresTrenChart'), {
@@ -1767,6 +1442,295 @@ LANGKAH 4 - Urutan deploy
                     scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { ticks: { maxRotation: 45, minRotation: 45 } } }
                 }
             });
+        }
+
+        /* ==========================================================
+            PETA SEBARAN TUNGGAKAN AKTIF (LEAFLET 2-LAPIS)
+        ========================================================== */
+        function initLeafletMap() {
+            if (progresMapInst) return;
+            progresMapInst = L.map('progresMap', {
+                center: [-2.5489, 118.0149], // Pusat Indonesia
+                zoom: 5,
+                preferCanvas: true
+            });
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap &copy; CARTO',
+                subdomains: 'abcd',
+                maxZoom: 19
+            }).addTo(progresMapInst);
+
+            mapLayerGroup = L.layerGroup().addTo(progresMapInst);
+        }
+
+        function updateMapKpDropdown(selectedRegion) {
+            const kpSelect = document.getElementById('mapFilterKp');
+            if (!kpSelect) return;
+
+            const currentVal = kpSelect.value;
+            const filteredByReg = selectedRegion === 'ALL'
+                ? allData.petaRingkasan
+                : allData.petaRingkasan.filter(r => String(r['Region'] || '').trim().toUpperCase() === selectedRegion.trim().toUpperCase());
+
+            const kps = [...new Set(filteredByReg.map(r => String(r['KP'] || '').trim()).filter(Boolean))].sort();
+            kpSelect.innerHTML = '<option value="ALL">Semua KP</option>';
+            kps.forEach(kp => {
+                const opt = document.createElement('option');
+                opt.value = kp;
+                opt.innerText = kp;
+                kpSelect.appendChild(opt);
+            });
+
+            if (kps.includes(currentVal)) {
+                kpSelect.value = currentVal;
+            } else {
+                kpSelect.value = 'ALL';
+            }
+        }
+
+        function onMapKpChange() {
+            renderProgresMap();
+        }
+
+        function setMapMode(mode) {
+            currentMapMode = mode;
+            const btnR = document.getElementById('btnMapRingkasan');
+            const btnD = document.getElementById('btnMapDetail');
+            const act = "px-3 py-1.5 rounded-lg bg-white text-rose-600 shadow-sm transition-all";
+            const inact = "px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-700 transition-all";
+
+            btnR.className = mode === 'ringkasan' ? act : inact;
+            btnD.className = mode === 'detail' ? act : inact;
+
+            renderProgresMap();
+        }
+
+        function drillDownKpToDetail(kpName) {
+            const kpSelect = document.getElementById('mapFilterKp');
+            if (kpSelect) {
+                // Pastikan option KP ada di dropdown
+                let exists = Array.from(kpSelect.options).some(o => o.value === kpName);
+                if (!exists) {
+                    const opt = document.createElement('option');
+                    opt.value = kpName;
+                    opt.innerText = kpName;
+                    kpSelect.appendChild(opt);
+                }
+                kpSelect.value = kpName;
+            }
+            setMapMode('detail');
+        }
+
+        function showMapSpinner(show, text = "Memuat titik koordinat...") {
+            const sp = document.getElementById('mapSpinner');
+            const tx = document.getElementById('mapSpinnerText');
+            if (tx) tx.innerText = text;
+            if (sp) sp.classList.toggle('hidden', !show);
+        }
+
+        function showMapNotice(show, text = "") {
+            const box = document.getElementById('mapNoticeBanner');
+            const tx = document.getElementById('mapNoticeText');
+            if (tx) tx.innerText = text;
+            if (box) box.classList.toggle('hidden', !show);
+        }
+
+        async function renderProgresMap() {
+            if (!progresMapInst) initLeafletMap();
+            if (mapLayerGroup) mapLayerGroup.clearLayers();
+
+            const selectedPeriod = document.getElementById('filterPeriode').value;
+            const selectedRegion = document.getElementById('progFilterRegion').value;
+            const selectedKp     = document.getElementById('mapFilterKp').value;
+
+            if (currentMapMode === 'ringkasan') {
+                showMapSpinner(false);
+                showMapNotice(false);
+                document.getElementById('mapSubtitle').innerText = "Ringkasan kepadatan tunggakan aktif per grid area (~1,1 km)";
+                document.getElementById('mapLegend').innerHTML = `
+                    <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> &lt; 25 Plg</span>
+                    <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-orange-500 inline-block"></span> 25 - 100 Plg</span>
+                    <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-600 inline-block"></span> &gt; 100 Plg</span>
+                `;
+
+                if (!allData.petaRingkasan || allData.petaRingkasan.length === 0) {
+                    showMapNotice(true, "Data peta ringkasan belum tersedia. Jalankan skrip Colab terbaru terlebih dahulu.");
+                    document.getElementById('mapStatsFooter').innerText = "0 area ditampilkan";
+                    return;
+                }
+
+                // Filter sesuai pilihan pengguna
+                const filtered = allData.petaRingkasan.filter(r => {
+                    if (!rowMatchesBillingType(r)) return false;
+                    if (selectedPeriod !== 'ALL' && String(r['Periode'] || '').trim() !== selectedPeriod) return false;
+                    if (selectedRegion !== 'ALL' && String(r['Region'] || '').trim().toUpperCase() !== selectedRegion.toUpperCase()) return false;
+                    if (selectedKp !== 'ALL' && String(r['KP'] || '').trim().toUpperCase() !== selectedKp.toUpperCase()) return false;
+                    return true;
+                });
+
+                // Gabungkan titik grid yang sama jika Periode='ALL' atau Tipe='all'
+                const gridMap = {};
+                filtered.forEach(r => {
+                    const lat = Number(r['lat_grid']);
+                    const lng = Number(r['lng_grid']);
+                    if (!lat || !lng || isNaN(lat) || isNaN(lng)) return;
+                    const key = `${lat},${lng}`;
+                    if (!gridMap[key]) {
+                        gridMap[key] = {
+                            lat, lng,
+                            region: r['Region'] || '-',
+                            kp: r['KP'] || '-',
+                            plg: 0, tagihan: 0, rp: 0
+                        };
+                    }
+                    gridMap[key].plg += Number(r['Jumlah_Pelanggan'] || 0);
+                    gridMap[key].tagihan += Number(r['Jumlah_Tagihan'] || 0);
+                    gridMap[key].rp += Number(r['Jumlah_Rupiah'] || 0);
+                });
+
+                const points = Object.values(gridMap);
+                const bounds = [];
+                let totalPlgMap = 0;
+
+                points.forEach(pt => {
+                    totalPlgMap += pt.plg;
+                    bounds.push([pt.lat, pt.lng]);
+
+                    const color = pt.plg > 100 ? '#e11d48' : (pt.plg >= 25 ? '#f97316' : '#fbbf24');
+                    const radius = Math.min(20, Math.max(5, Math.sqrt(pt.plg) * 1.4));
+
+                    const circle = L.circleMarker([pt.lat, pt.lng], {
+                        radius: radius,
+                        fillColor: color,
+                        color: '#ffffff',
+                        weight: 1,
+                        opacity: 0.9,
+                        fillOpacity: 0.78
+                    });
+
+                    const safeKp = escapeHtml(pt.kp);
+                    const kpArg = String(pt.kp).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+                    circle.bindPopup(`
+                        <div class="min-w-[190px]">
+                            <div class="font-bold text-slate-800 text-xs">${safeKp}</div>
+                            <div class="text-[11px] text-slate-400 mb-2">${escapeHtml(pt.region)}</div>
+                            <div class="space-y-1 border-t border-slate-100 pt-1.5 text-[11px]">
+                                <div class="flex justify-between"><span>Tunggakan Aktif:</span><strong class="text-rose-600">${pt.plg.toLocaleString('id-ID')} Plg</strong></div>
+                                <div class="flex justify-between"><span>Jumlah Tagihan:</span><strong>${pt.tagihan.toLocaleString('id-ID')}</strong></div>
+                                <div class="flex justify-between"><span>Total Nominal:</span><strong>${formatRupiah(pt.rp)}</strong></div>
+                            </div>
+                            <button onclick="drillDownKpToDetail('${kpArg}')" class="mt-2.5 w-full py-1.5 px-2.5 bg-rose-500 hover:bg-rose-600 text-white font-semibold rounded-lg text-[11px] transition-colors">
+                                🔍 Lihat Pin Pelanggan Area Ini
+                            </button>
+                        </div>
+                    `);
+
+                    mapLayerGroup.addLayer(circle);
+                });
+
+                document.getElementById('mapStatsFooter').innerText = `${points.length.toLocaleString('id-ID')} titik area (${totalPlgMap.toLocaleString('id-ID')} pelanggan)`;
+                if (bounds.length > 0) {
+                    progresMapInst.fitBounds(bounds, { padding: [25, 25], maxZoom: 13 });
+                }
+
+            } else {
+                // MODE PIN PELANGGAN (LAYER 2 - ON DEMAND)
+                document.getElementById('mapSubtitle').innerText = "Pin koordinat rumah pelanggan tunggakan aktif (klik pin untuk rute Google Maps)";
+                document.getElementById('mapLegend').innerHTML = `
+                    <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-600 inline-block"></span> Titik Rumah Pelanggan Tunggakan Aktif</span>
+                `;
+
+                if (selectedRegion === 'ALL' && selectedKp === 'ALL') {
+                    showMapSpinner(false);
+                    showMapNotice(true, "Pilih Region atau KP terlebih dahulu (atau klik salah satu area pada mode Ringkasan Area) untuk memuat pin pelanggan.");
+                    document.getElementById('mapStatsFooter').innerText = "Menunggu pilihan Region / KP";
+                    return;
+                }
+
+                const cacheKey = `${selectedRegion}|${selectedKp}|${currentBillingType}|${selectedPeriod}`;
+                let payload = detailPinCache[cacheKey];
+
+                if (!payload) {
+                    showMapNotice(false);
+                    showMapSpinner(true, `Mengambil koordinat pelanggan (${selectedKp !== 'ALL' ? selectedKp : selectedRegion})...`);
+                    try {
+                        const url = `${WEB_APP_URL}?action=petaDetail&region=${encodeURIComponent(selectedRegion)}&kp=${encodeURIComponent(selectedKp)}&tipe=${encodeURIComponent(currentBillingType)}&periode=${encodeURIComponent(selectedPeriod)}&nocache=${Date.now()}`;
+                        const resp = await fetch(url);
+                        payload = await resp.json();
+                        if (!payload.error) {
+                            detailPinCache[cacheKey] = payload;
+                        }
+                    } catch (err) {
+                        showMapSpinner(false);
+                        showMapNotice(true, "Gagal memuat pin pelanggan: " + err.message);
+                        return;
+                    }
+                    showMapSpinner(false);
+                }
+
+                if (payload.error) {
+                    showMapNotice(true, payload.error);
+                    document.getElementById('mapStatsFooter').innerText = "0 pin ditampilkan";
+                    return;
+                }
+
+                if (payload.truncated) {
+                    showMapNotice(true, `Menampilkan ${payload.rows.length.toLocaleString('id-ID')} dari ${payload.totalMatched.toLocaleString('id-ID')} pelanggan. Pilih KP spesifik agar seluruh titik tampil.`);
+                } else {
+                    showMapNotice(false);
+                }
+
+                const clusterGroup = L.markerClusterGroup({
+                    chunkedLoading: true,
+                    maxClusterRadius: 45
+                });
+
+                const pinIcon = L.divIcon({
+                    className: 'custom-pin-icon',
+                    html: `<div style="width:12px;height:12px;background:#e11d48;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>`,
+                    iconSize: [12, 12],
+                    iconAnchor: [6, 6]
+                });
+
+                const bounds = [];
+                // Format row: [idPelanggan, kp, tipe, periode, lat, lng, jmlTagihan, rupiah]
+                payload.rows.forEach(r => {
+                    const idPlg = r[0], kp = r[1], tipe = r[2], per = r[3];
+                    const lat = Number(r[4]), lng = Number(r[5]);
+                    const jmlTgh = Number(r[6] || 1), rp = Number(r[7] || 0);
+                    if (!lat || !lng) return;
+
+                    bounds.push([lat, lng]);
+                    const marker = L.marker([lat, lng], { icon: pinIcon });
+                    const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+
+                    marker.bindPopup(`
+                        <div class="min-w-[200px]">
+                            <div class="text-[10px] font-semibold uppercase text-rose-500">Tunggakan Aktif</div>
+                            <div class="font-bold text-slate-800 text-sm select-all">${escapeHtml(idPlg)}</div>
+                            <div class="text-[11px] text-slate-500 mb-2">${escapeHtml(kp)} • ${escapeHtml(tipe)}</div>
+                            <div class="space-y-1 border-t border-slate-100 pt-1.5 text-[11px]">
+                                <div class="flex justify-between"><span>Periode:</span><strong>${escapeHtml(per)}</strong></div>
+                                <div class="flex justify-between"><span>Jml Tagihan:</span><strong>${jmlTgh} Tagihan</strong></div>
+                                <div class="flex justify-between"><span>Nominal:</span><strong class="text-rose-600">${formatRupiah(rp)}</strong></div>
+                            </div>
+                            <a href="${gmapsUrl}" target="_blank" rel="noopener noreferrer" class="mt-2.5 block text-center w-full py-1.5 px-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-[11px] transition-colors">
+                                📍 Buka Rute Google Maps
+                            </a>
+                        </div>
+                    `);
+
+                    clusterGroup.addLayer(marker);
+                });
+
+                mapLayerGroup.addLayer(clusterGroup);
+                document.getElementById('mapStatsFooter').innerText = `${payload.rows.length.toLocaleString('id-ID')} pin pelanggan ditampilkan`;
+                if (bounds.length > 0) {
+                    progresMapInst.fitBounds(bounds, { padding: [25, 25], maxZoom: 16 });
+                }
+            }
         }
 
         window.onload = () => {
