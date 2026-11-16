@@ -16,7 +16,7 @@
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; margin: 0; }
         .chart-container { position: relative; height: 320px; width: 100%; min-height: 280px; }
-        #progresMap { height: 440px; width: 100%; z-index: 1; }
+        #progresMap { height: clamp(420px, 55vh, 620px); width: 100%; z-index: 1; }
         @media (max-width: 640px) { #progresMap { height: 380px; } }
         
         /* Custom Scrollbar untuk Tabel */
@@ -59,8 +59,8 @@
         </div>
     </div>
 
-    <!-- WRAPPER LEBAR PENUH DI GOOGLE SITES -->
-    <div id="dashboardWrapper" class="w-full mx-auto space-y-4 sm:space-y-6 px-2 sm:px-6">
+    <!-- WRAPPER DASHBOARD PROPORSIONAL -->
+    <div id="dashboardWrapper" class="w-full max-w-[1440px] mx-auto space-y-4 sm:space-y-6 px-2 sm:px-6">
 
         <!-- HEADER & BADGE WAKTU UPDATE -->
         <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-slate-200 pb-4">
@@ -496,8 +496,8 @@
 
         const FU_GROUPS = [
             { kw: 'tele',   rev: 'teleRev', plg: 'telePlg' },
-            { kw: 'reten', rev: 'retRev',  plg: 'retPlg'  },
-            { kw: 'win',   rev: 'winRev',  plg: 'winPlg'  }
+            { kw: 'reten',  rev: 'retRev',  plg: 'retPlg'  },
+            { kw: 'win',    rev: 'winRev',  plg: 'winPlg'  }
         ];
 
         /* ==========================================================
@@ -1447,11 +1447,21 @@
         /* ==========================================================
             PETA SEBARAN TUNGGAKAN AKTIF (LEAFLET 2-LAPIS)
         ========================================================== */
-       function initLeafletMap() {
+        function initLeafletMap() {
             if (progresMapInst) return;
+
+            // Batas koordinat wilayah Indonesia agar peta tidak meluber ke benua lain saat zoom out
+            const indonesiaBounds = L.latLngBounds(
+                L.latLng(-13.5, 92.0), // Barat Daya
+                L.latLng(8.5, 143.5)   // Timur Laut
+            );
+
             progresMapInst = L.map('progresMap', {
                 center: [-2.5489, 118.0149], // Pusat Indonesia
                 zoom: 5,
+                minZoom: 5,
+                maxBounds: indonesiaBounds,
+                maxBoundsViscosity: 0.8,
                 preferCanvas: true
             });
 
@@ -1483,6 +1493,11 @@
             }, null, { position: 'topright' }).addTo(progresMapInst);
 
             mapLayerGroup = L.layerGroup().addTo(progresMapInst);
+
+            // Otomatis perbaiki ukuran kanvas peta saat browser di-zoom in/out
+            window.addEventListener('resize', () => {
+                if (progresMapInst) progresMapInst.invalidateSize();
+            });
         }
 
         function updateMapKpDropdown(selectedRegion) {
