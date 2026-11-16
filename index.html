@@ -1447,7 +1447,7 @@
         /* ==========================================================
             PETA SEBARAN TUNGGAKAN AKTIF (LEAFLET 2-LAPIS)
         ========================================================== */
-        function initLeafletMap() {
+       function initLeafletMap() {
             if (progresMapInst) return;
             progresMapInst = L.map('progresMap', {
                 center: [-2.5489, 118.0149], // Pusat Indonesia
@@ -1455,11 +1455,32 @@
                 preferCanvas: true
             });
 
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                attribution: '&copy; OpenStreetMap &copy; CARTO',
-                subdomains: 'abcd',
-                maxZoom: 19
-            }).addTo(progresMapInst);
+            // Peta Jalan Utama (Gratis, tanpa API Key, aman di Google Sites)
+            const streetLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri',
+                maxZoom: 18
+            });
+
+            // Opsi Peta Abu-abu Minimalis (agar titik merah/kuning lebih kontras)
+            const grayLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri',
+                maxZoom: 16
+            });
+
+            // Opsi Citra Satelit (untuk melihat bangunan/rumah di mode Pin Pelanggan)
+            const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri',
+                maxZoom: 18
+            });
+
+            streetLayer.addTo(progresMapInst);
+
+            // Tombol pilihan tampilan peta di pojok kanan atas peta
+            L.control.layers({
+                "Peta Jalan": streetLayer,
+                "Peta Minimalis": grayLayer,
+                "Satelit": satelliteLayer
+            }, null, { position: 'topright' }).addTo(progresMapInst);
 
             mapLayerGroup = L.layerGroup().addTo(progresMapInst);
         }
