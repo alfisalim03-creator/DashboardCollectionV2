@@ -6,17 +6,17 @@
     <title>Dashboard Pencapaian Collection</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Leaflet.js & MarkerCluster via jsDelivr (lebih stabil untuk iframe/Google Sites) -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <!-- Leaflet.js & MarkerCluster untuk Peta Interaktif -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <script>
 /* progres-map.js: modul Peta Tunggakan Aktif untuk tab Progres Tagihan
-   Butuh: Leaflet 1.9.4, leaflet.markercluster 1.5.3, Tailwind CDN.
+   Butuh: Leaflet 1.9.4, leaflet.markercluster 1.5.3 (dist/leaflet.markercluster.js), Tailwind CDN.
    API: ProgresMap.mount(sel,{webAppUrl}) / setData(rows) / setFilter({tipe,periode,region})
-        / resetKp(resetMode) / clearCache() / onShow() */
+        / resetKp() / clearCache() / onShow() */
 (function (g) {
   'use strict';
   const LAT = [-11.2, 6.2], LNG = [94.8, 141.2];
@@ -31,15 +31,7 @@
   const num = (n) => Number(n || 0).toLocaleString('id-ID');
   const rp = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n || 0);
   const up = (v) => String(v == null ? '' : v).trim().toUpperCase();
-  const okXY = (rawLat, rawLng) => {
-    if (rawLat === '' || rawLat == null || rawLng === '' || rawLng == null) return false;
-    const a = Number(rawLat), b = Number(rawLng);
-    if (!Number.isFinite(a) || !Number.isFinite(b) || (a === 0 && b === 0)) return false;
-    if (a < LAT[0] || a > LAT[1] || b < LNG[0] || b > LNG[1]) return false;
-    // Saring koordinat salah input yang jatuh di tengah Samudra Hindia (barat daya Sumatra)
-    if (a < -6.2 && b < 104.8) return false;
-    return true;
-  };
+  const okXY = (a, b) => a >= LAT[0] && a <= LAT[1] && b >= LNG[0] && b <= LNG[1];
   const col = (n) => (n > 100 ? '#e11d48' : n >= 25 ? '#f97316' : '#fbbf24');
   const vis = () => S.root.getClientRects().length > 0;
 
@@ -47,12 +39,10 @@
   .pm-wrap .leaflet-popup-content-wrapper{border-radius:14px;padding:0}
   .pm-wrap .leaflet-popup-content{margin:14px 16px!important;width:232px!important;font:12px/1.45 Inter,sans-serif}
   .pm-wrap .leaflet-container a.pm-link{color:#fff!important;text-decoration:none!important}
-  .pm-map{height:clamp(400px,62vh,660px);width:100%;z-index:1;background-color:#cbe4f2}
+  .pm-map{height:clamp(400px,62vh,660px);width:100%;z-index:1}
   .pm-box.pm-fs{position:fixed;inset:0;z-index:3000;border-radius:0;border:0}
   .pm-box.pm-fs .pm-map{height:100dvh}
-  .pm-ctl button{width:30px;height:30px;background:#fff;border:0;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
-  .pm-ctl button:last-child{border-bottom:0}
-  .pm-ctl button:hover{background:#f8fafc}
+  .pm-ctl a{display:flex;align-items:center;justify-content:center;cursor:pointer}
   .pm-pin{width:14px;height:14px;background:#e11d48;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.45)}
   .pm-wrap button:focus-visible,.pm-wrap select:focus-visible{outline:2px solid #f43f5e;outline-offset:2px}
   .pm-hint{transition:opacity .3s}
@@ -178,8 +168,7 @@
   function paintRank(all) {
     const m = {};
     all.forEach((r) => {
-      const k = String(r.KP || '').trim();
-      if (!k) return;
+      const k = r.KP || '-';
       const o = m[k] || (m[k] = { kp: k, region: r.Region || '-', plg: 0 });
       o.plg += Number(r.Jumlah_Pelanggan || 0);
     });
@@ -196,14 +185,9 @@
       </button></li>`;
     }).join('') || '<li class="text-xs text-slate-400 p-2">Belum ada data untuk filter ini.</li>';
   }
-  function paintStats(cur) {
+  function paintStats(cur, all) {
     let plg = 0, rpv = 0; const kps = new Set();
-    cur.forEach((r) => {
-      plg += Number(r.Jumlah_Pelanggan || 0);
-      rpv += Number(r.Jumlah_Rupiah || 0);
-      const kpName = String(r.KP || '').trim();
-      if (kpName) kps.add(kpName);
-    });
+    cur.forEach((r) => { plg += Number(r.Jumlah_Pelanggan || 0); rpv += Number(r.Jumlah_Rupiah || 0); kps.add(String(r.KP || '')); });
     R('sPlg').textContent = num(plg); R('sKp').textContent = num(kps.size); R('sRp').textContent = rp(rpv);
     const t = S.f; const reg = t.region === 'ALL' ? 'Semua region' : t.region;
     R('ctx').textContent = `${TIPE[t.tipe] || t.tipe} · ${t.periode === 'ALL' ? 'Semua periode' : t.periode} · ${reg}`;
@@ -223,12 +207,8 @@
       <div class="text-lg font-extrabold text-slate-800">${num(p.plg)} <span class="text-xs font-medium text-slate-500">pelanggan</span></div>
       <div class="text-[11px] text-slate-500 mb-2">${num(p.tgh)} tagihan · ${rp(p.rp)}</div>
       <div class="border-t border-slate-100 pt-2 space-y-1.5">
-        ${kps.slice(0, 3).map(([k, n]) => k && k !== '-'
-          ? `<button type="button" data-pm="drill" data-kp="${esc(k)}" class="w-full flex justify-between items-center gap-2 px-2.5 py-2 rounded-lg bg-slate-50 hover:bg-rose-50 text-left">
-              <span class="font-semibold text-slate-700 truncate">${esc(k)}</span><span class="text-rose-600 font-bold whitespace-nowrap">${num(n)} · Lihat pin</span></button>`
-          : `<div class="w-full flex justify-between items-center gap-2 px-2.5 py-1.5 rounded-lg bg-slate-50 text-left">
-              <span class="font-semibold text-slate-500 truncate">Area tanpa KP</span><span class="text-rose-600 font-bold whitespace-nowrap">${num(n)}</span></div>`
-        ).join('')}
+        ${kps.slice(0, 3).map(([k, n]) => `<button type="button" data-pm="drill" data-kp="${esc(k)}" class="w-full flex justify-between items-center gap-2 px-2.5 py-2 rounded-lg bg-slate-50 hover:bg-rose-50 text-left">
+          <span class="font-semibold text-slate-700 truncate">${esc(k)}</span><span class="text-rose-600 font-bold whitespace-nowrap">${num(n)} · Lihat pin</span></button>`).join('')}
         ${kps.length > 3 ? `<div class="text-[11px] text-slate-400">+${kps.length - 3} KP lainnya di titik ini</div>` : ''}
       </div></div>`;
   }
@@ -236,15 +216,15 @@
   function drawSummary() {
     const grid = {};
     rows().forEach((r) => {
-      if (!okXY(r.lat_grid, r.lng_grid)) return;
       const lat = Number(r.lat_grid), lng = Number(r.lng_grid);
+      if (!okXY(lat, lng)) return;
       const k = lat + ',' + lng;
       const p = grid[k] || (grid[k] = { lat, lng, plg: 0, tgh: 0, rp: 0, kps: {} });
-      const n = Number(r.Jumlah_Pelanggan || 0), kp = String(r.KP || '').trim() || '-';
+      const n = Number(r.Jumlah_Pelanggan || 0), kp = r.KP || '-';
       p.plg += n; p.tgh += Number(r.Jumlah_Tagihan || 0); p.rp += Number(r.Jumlah_Rupiah || 0);
       p.kps[kp] = (p.kps[kp] || 0) + n;
     });
-    const pts = Object.values(grid).sort((a, b) => b.plg - a.plg);
+    const pts = Object.values(grid).sort((a, b) => b.plg - a.plg); // besar digambar dulu, kecil di atas
     let total = 0;
     pts.forEach((p) => {
       total += p.plg;
@@ -287,68 +267,38 @@
     const { tipe, periode, region } = S.f;
     const key = [region, S.kp, tipe, periode].join('|');
     let pl = S.cache[key];
-
-    try {
-      if (!pl) {
-        spin(true, 'Memuat pin ' + (S.kp !== 'ALL' ? S.kp : region) + '...');
-        const ac = (S.abort = new AbortController());
+    if (!pl) {
+      spin(true, 'Memuat pin ' + (S.kp !== 'ALL' ? S.kp : region) + '...');
+      const ac = (S.abort = new AbortController());
+      try {
         const u = `${S.cfg.webAppUrl}?action=petaDetail&region=${encodeURIComponent(region)}&kp=${encodeURIComponent(S.kp)}&tipe=${encodeURIComponent(tipe)}&periode=${encodeURIComponent(periode)}&nocache=${Date.now()}`;
         const res = await fetch(u, { signal: ac.signal });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         pl = await res.json();
-        if (my !== S.token) return;
-        if (pl && !pl.error && Array.isArray(pl.rows)) {
-          S.cache[key] = pl;
-        }
+        if (!pl.error) S.cache[key] = pl;
+      } catch (err) {
+        if (err.name === 'AbortError' || my !== S.token) return;
+        spin(false); notice('Gagal memuat pin pelanggan: ' + err.message + '. Coba lagi dengan memilih KP yang sama.');
+        S.sig = ''; return;
       }
-
-      if (my !== S.token) return;
-      spin(false);
-
-      if (!pl || pl.error) {
-        notice((pl && pl.error) ? pl.error : 'Respons server tidak valid.');
-        R('foot').textContent = '0 pin ditampilkan';
-        S.sig = '';
-        return;
-      }
-
-      if (!Array.isArray(pl.rows)) {
-        notice(pl.message || 'Data detail koordinat belum tersedia di server.');
-        R('foot').textContent = '0 pin ditampilkan';
-        S.sig = '';
-        return;
-      }
-
-      if (pl.truncated) {
-        notice(`Menampilkan ${num(pl.rows.length)} dari ${num(pl.totalMatched || pl.rows.length)} pelanggan. Pilih KP yang lebih spesifik agar semua titik tampil.`);
-      }
-
-      const cg = typeof g.L.markerClusterGroup === 'function'
-        ? g.L.markerClusterGroup({ chunkedLoading: true, maxClusterRadius: 45, showCoverageOnHover: false })
-        : g.L.layerGroup();
-      const icon = g.L.divIcon({ className: '', html: '<div class="pm-pin"></div>', iconSize: [14, 14], iconAnchor: [7, 7] });
-      const bs = [];
-
-      pl.rows.forEach((r) => {
-        if (!Array.isArray(r) || r.length < 6) return;
-        if (!okXY(r[4], r[5])) return;
-        const lat = Number(r[4]), lng = Number(r[5]);
-        bs.push([lat, lng]);
-        cg.addLayer(g.L.marker([lat, lng], { icon }).bindPopup(pinPopup(r), { maxWidth: 260 }));
-      });
-
-      S.layer.addLayer(cg); S.pts = bs;
-      R('foot').textContent = `${num(bs.length)} pin ditampilkan`;
-      if (!bs.length) empty('Tidak ada koordinat valid', 'Pelanggan di filter ini belum punya titik koordinat yang bisa ditampilkan.', null, true);
-    } catch (err) {
-      if (err.name === 'AbortError' || my !== S.token) return;
-      spin(false);
-      notice('Gagal memuat pin pelanggan: ' + err.message + '. Coba pilih ulang KP untuk memuat ulang.');
-      R('foot').textContent = '0 pin ditampilkan';
-      S.sig = '';
-    } finally {
-      if (my === S.token) S.abort = null;
     }
+    if (my !== S.token) return;
+    spin(false);
+    if (pl.error) { notice(pl.error); R('foot').textContent = '0 pin ditampilkan'; return; }
+    if (pl.truncated) notice(`Menampilkan ${num(pl.rows.length)} dari ${num(pl.totalMatched)} pelanggan. Pilih KP yang lebih spesifik agar semua titik tampil.`);
+
+    const cg = g.L.markerClusterGroup ? g.L.markerClusterGroup({ chunkedLoading: true, maxClusterRadius: 45, showCoverageOnHover: false }) : g.L.layerGroup();
+    const icon = g.L.divIcon({ className: '', html: '<div class="pm-pin"></div>', iconSize: [14, 14], iconAnchor: [7, 7] });
+    const bs = [];
+    pl.rows.forEach((r) => {
+      const lat = Number(r[4]), lng = Number(r[5]);
+      if (!okXY(lat, lng)) return;
+      bs.push([lat, lng]);
+      cg.addLayer(g.L.marker([lat, lng], { icon }).bindPopup(pinPopup(r), { maxWidth: 260 }));
+    });
+    S.layer.addLayer(cg); S.pts = bs;
+    R('foot').textContent = `${num(bs.length)} pin ditampilkan`;
+    if (!bs.length) empty('Tidak ada koordinat valid', 'Pelanggan di filter ini belum punya titik koordinat yang bisa ditampilkan.', null, true);
   }
 
   /* ---------- render ---------- */
@@ -364,7 +314,7 @@
     const all = rows(true);
     paintKpSelect(all);
     S.sig = [S.f.tipe, S.f.periode, S.f.region, S.kp, S.mode, S.ver].join('|');
-    paintStats(rows()); paintRank(all); paintAct(); paintSeg(); paintLegend();
+    paintStats(rows(), all); paintRank(all); paintAct(); paintSeg(); paintLegend();
     if (S.mode === 'ringkasan') { drawSummary(); fitTo(S.pts, 13); }
     else { await drawPins(my); if (my === S.token) fitTo(S.pts, 16); }
   }
@@ -375,17 +325,12 @@
 
   function toggleFs(on) {
     S.fs = on == null ? !S.fs : on;
-    const w = document.getElementById('dashboardWrapper');
+    const w = document.getElementById('dashboardWrapper'); // transform pada wrapper merusak position:fixed
     S.box.classList.toggle('pm-fs', S.fs);
     if (w) w.style.transform = S.fs ? 'none' : '';
     document.body.style.overflow = S.fs ? 'hidden' : '';
     const b = S.root.querySelector('[data-c="fs"]');
-    if (b) {
-      const lbl = S.fs ? 'Keluar layar penuh' : 'Layar penuh';
-      b.innerHTML = S.fs ? I.fsx : I.fs;
-      b.title = lbl;
-      b.setAttribute('aria-label', lbl);
-    }
+    if (b) { b.innerHTML = S.fs ? I.fsx : I.fs; b.title = b.ariaLabel = S.fs ? 'Keluar layar penuh' : 'Layar penuh'; }
     if (S.touch) S.map.dragging[S.fs ? 'enable' : 'disable']();
     setTimeout(() => S.map.invalidateSize(), 60);
   }
@@ -401,12 +346,9 @@
     L.control.layers({ 'Peta jalan': street, Satelit: sat }, null, { position: 'topright' }).addTo(map);
     const Ctl = L.Control.extend({ options: { position: 'topleft' }, onAdd() {
       const d = L.DomUtil.create('div', 'leaflet-bar pm-ctl');
-      d.innerHTML = `<button type="button" data-c="reset" title="Tampilkan semua titik" aria-label="Tampilkan semua titik">${I.reset}</button><button type="button" data-c="fs" title="Layar penuh" aria-label="Layar penuh">${I.fs}</button>`;
+      d.innerHTML = `<a href="#" role="button" data-c="reset" title="Tampilkan semua titik" aria-label="Tampilkan semua titik">${I.reset}</a><a href="#" role="button" data-c="fs" title="Layar penuh" aria-label="Layar penuh">${I.fs}</a>`;
       L.DomEvent.disableClickPropagation(d);
-      d.addEventListener('click', (e) => {
-        const c = e.target.closest('[data-c]');
-        if (c) (c.dataset.c === 'fs' ? toggleFs() : fitTo(S.pts, 13));
-      });
+      d.addEventListener('click', (e) => { e.preventDefault(); const c = e.target.closest('[data-c]'); if (c) (c.dataset.c === 'fs' ? toggleFs() : fitTo(S.pts, 13)); });
       return d; } });
     map.addControl(new Ctl());
     S.layer = L.layerGroup().addTo(map);
@@ -425,7 +367,7 @@
     S.cfg = cfg || {};
     if (!document.getElementById('pm-css')) { const st = document.createElement('style'); st.id = 'pm-css'; st.textContent = CSS; document.head.appendChild(st); }
     host.innerHTML = TPL; S.root = host; S.box = host.querySelector('.pm-box');
-    if (!g.L) { notice('Leaflet gagal dimuat. Periksa koneksi internet, lalu muat ulang halaman.'); return; }
+    if (!g.L) { notice('Leaflet gagal dimuat. Periksa koneksi atau pemblokiran unpkg.com, lalu muat ulang halaman.'); return; }
     initMap(); paintSeg(); paintLegend();
     R('kp').addEventListener('change', (e) => setKp(e.target.value));
     host.addEventListener('click', (e) => {
@@ -453,11 +395,12 @@
     mount,
     setData(r) { S.data = r || []; S.ver++; later(); },
     setFilter(f) { Object.assign(S.f, f || {}); later(); },
-    resetKp(resetMode) { S.kp = 'ALL'; if (resetMode) S.mode = 'ringkasan'; later(); },
+    resetKp() { S.kp = 'ALL'; later(); },
     clearCache() { S.cache = {}; S.ver++; },
     onShow() { if (S.map) { setTimeout(() => { S.map.invalidateSize(); S.sig = ''; render(); }, 120); } }
   };
 })(window);
+
     </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -859,6 +802,10 @@
         let currentTab = 'sla3';
         let currentBillingType = 'prepaid';
         let trenChartInst = null, regionChartInst = null, progresTrenChartInst = null;
+        
+        // State & Instance Peta Leaflet
+
+        // Batas Koordinat Wilayah Indonesia (Sabang-Merauke, Miangas-Rote)
 
         let lbSortCol = 'default';
         let lbSortAsc = false;
@@ -887,6 +834,12 @@
             return String(v == null ? '' : v)
                 .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        function isValidIndoCoord(lat, lng) {
+            return !isNaN(lat) && !isNaN(lng) &&
+                   lat >= -11.2 && lat <= 6.2 &&
+                   lng >= 94.8 && lng <= 141.2;
         }
 
         function parseYMD(str) {
@@ -1542,7 +1495,7 @@
             document.getElementById('progEndDate').value = '';
             document.getElementById('progFilterRegion').value = 'ALL';
             document.getElementById('filterPeriode').value = defaultPeriod;
-            ProgresMap.resetKp(true);
+            ProgresMap.resetKp();
             
             filterState[currentBillingType] = {
                 periode: defaultPeriod,
@@ -1821,6 +1774,17 @@
                 }
             });
         }
+
+        /* ==========================================================
+            PETA SEBARAN TUNGGAKAN AKTIF (LEAFLET 2-LAPIS)
+        ========================================================== */
+
+
+
+
+
+
+
 
         window.onload = () => {
             loadAllData();
