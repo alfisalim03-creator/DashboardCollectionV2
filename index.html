@@ -16,7 +16,7 @@
 /* progres-map.js: modul Peta Tunggakan Aktif untuk tab Progres Tagihan
    Butuh: Leaflet 1.9.4, leaflet.markercluster 1.5.3 (dist/leaflet.markercluster.js), Tailwind CDN.
    API: ProgresMap.mount(sel,{webAppUrl}) / setData(rows) / setProgresData(rows)
-        / setFilter({tipe,periode,region}) / setKpKab(kp,kab) / resetKp() / clearCache() / onShow() */
+        / setFilter({tipe,periode,region}) / resetKp() / clearCache() / onShow() */
 (function (g) {
   'use strict';
   const LAT = [-11.2, 6.2], LNG = [94.8, 141.2];
@@ -87,7 +87,7 @@
   const I = {
     pin: '<svg class="w-4 h-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>',
     reset: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg>',
-    fs: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
+    fs: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5-5"/></svg>',
     fsx: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>',
     chev: '<svg class="w-3.5 h-3.5 text-slate-400 group-hover:text-rose-500 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>'
   };
@@ -100,7 +100,6 @@
       <div>
         <h3 class="text-sm font-bold text-slate-700 flex items-center gap-2">${I.pin} Peta sebaran tunggakan aktif</h3>
         <p data-r="ctx" class="text-xs text-slate-500 mt-1"></p>
-        <p class="text-[11px] text-amber-700 mt-0.5">Peta hanya menampilkan tunggakan aktif. Filter Tgl Lunas tidak berlaku di sini.</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <select data-r="kp" aria-label="Filter KP" class="px-3 py-2 min-h-[36px] text-xs border border-slate-200 rounded-xl bg-slate-50 font-semibold text-slate-700 max-w-[210px]"></select>
@@ -183,7 +182,7 @@
 
   function pointInKabGeo(lat, lng, geoInfo) {
     if (!geoInfo) return true;
-    const pad = 0.0014;
+    const pad = 0.0014; // toleransi ~150m untuk pin di jalan perbatasan
     if (geoInfo.bbox) {
       const [sLat, nLat, wLng, eLng] = geoInfo.bbox;
       if (lat < sLat - pad || lat > nLat + pad || lng < wLng - pad || lng > eLng + pad) return false;
@@ -286,7 +285,7 @@
         }
 
         if (best && best.boundingbox && best.boundingbox.length === 4) {
-          const bb = best.boundingbox.map(Number);
+          const bb = best.boundingbox.map(Number); // [southLat, northLat, westLng, eastLng]
           const hasPoly = best.geojson && (best.geojson.type === 'Polygon' || best.geojson.type === 'MultiPolygon');
           const geoInfo = {
             bbox: bb,
@@ -310,11 +309,13 @@
     if (!geoInfo) return;
 
     if (geoInfo.geojson) {
+      // Halo putih tipis di bawah garis batas agar kontras di peta jalan maupun satelit
       g.L.geoJSON(geoInfo.geojson, {
         interactive: false,
         style: { color: '#ffffff', weight: 5.5, opacity: 0.85, fill: false }
       }).addTo(S.boundaryLayer);
 
+      // Garis batas administratif tegas warna rose
       g.L.geoJSON(geoInfo.geojson, {
         interactive: false,
         style: {
@@ -450,7 +451,7 @@
 
       const max = kpList.length ? kpList[0].plg || 1 : 1;
       rankEl.innerHTML = kpList.map((x, i) => `<li>
-        <button type="button" data-kp-pick="${esc(x.kp)}" class="group w-full text-left p-2.5 rounded-xl bg-white border border-slate-100 hover:border-rose-300 hover:bg-rose-50/50 transition-colors shadow-sm">
+        <button type="button" data-kp-pick="${esc(x.kp)}" class="group w-full text-left p-2.5 rounded-xl bg-white border border-slate-100 hover:border-rose-300 hover:bg-rose-50/50 transition-colors shadow-2xs">
           <div class="flex items-start gap-2">
             <span class="w-5 text-center text-[11px] font-bold text-slate-400 mt-0.5">${i + 1}</span>
             <div class="min-w-0 flex-1">
@@ -515,7 +516,7 @@
       const on = S.kab !== 'ALL' && normalizeKabKey(x.kab) === normalizeKabKey(S.kab);
       return `<li>
         <button type="button" data-kab-pick="${esc(x.kab)}" aria-pressed="${on}"
-          class="group w-full text-left p-2.5 rounded-xl border transition-all shadow-sm ${on ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-200' : 'bg-white border-slate-100 hover:border-rose-300 hover:bg-rose-50/50'}">
+          class="group w-full text-left p-2.5 rounded-xl border transition-all shadow-2xs ${on ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-200' : 'bg-white border-slate-100 hover:border-rose-300 hover:bg-rose-50/50'}">
           <div class="flex items-start gap-2">
             <span class="w-5 text-center text-[11px] font-bold ${on ? 'text-rose-600' : 'text-slate-400'} mt-0.5">${i + 1}</span>
             <div class="min-w-0 flex-1">
@@ -835,7 +836,6 @@
     setData(r) { S.data = r || []; S.ver++; later(); },
     setProgresData(r) { S.progresData = r || []; S.ver++; later(); },
     setFilter(f) { Object.assign(S.f, f || {}); later(); },
-    setKpKab(kp, kab) { S.kp = kp || 'ALL'; S.kab = (S.kp !== 'ALL' && kab) ? kab : 'ALL'; later(); },
     resetKp() { S.kp = 'ALL'; S.kab = 'ALL'; later(); },
     clearCache() { S.cache = {}; S.ver++; },
     onShow() { if (S.map) { setTimeout(() => { S.map.invalidateSize(); S.sig = ''; render(); }, 120); } }
@@ -855,7 +855,7 @@
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        #dashboardWrapper { opacity: 1; transform: translateY(0); transition: opacity 0.15s ease-in-out, transform 0.15s ease-in-out; }
+        #dashboardWrapper { opacity: 1; transform: translateY(0); transition: opacity 0.35s ease-in-out, transform 0.35s ease-in-out; }
         #dashboardWrapper.is-animating { opacity: 0; transform: translateY(12px); }
         @keyframes rowFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-row { animation: rowFadeIn 0.5s ease forwards; opacity: 0; }
@@ -869,37 +869,6 @@
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
             opacity: 0; cursor: pointer;
-        }
-
-        /* Keterbacaan & komponen tab Progres Tagihan */
-        #progresContainer .text-slate-400 { color: #64748b; }
-        #progresContainer .text-\[11px\] { font-size: 12px; }
-        #momSummaryCard { display: none !important; }
-
-        @media (min-width: 768px) {
-            #uxFilter { position: sticky; top: 8px; z-index: 40; }
-            #secKpi, #secTren, #progresMapMount, #secBoard { scroll-margin-top: 170px; }
-        }
-        .ux-chip {
-            display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
-            background: #fff1f2; border: 1px solid #fecdd3; color: #be123c; font-size: 12px; font-weight: 600;
-        }
-        .ux-chip.base { background: #f1f5f9; border-color: #e2e8f0; color: #334155; }
-        .ux-chip button { font-size: 15px; line-height: 1; }
-        .ux-btn {
-            padding: 6px 10px; border-radius: 10px; border: 1px solid #e2e8f0; background: #fff;
-            font-size: 12px; font-weight: 600; color: #475569; transition: background-color .15s;
-        }
-        .ux-btn:hover { background: #f1f5f9; }
-        .ux-btn:focus-visible { outline: 2px solid #f43f5e; outline-offset: 2px; }
-
-        /* Leaderboard jadi kartu di layar kecil */
-        @media (max-width: 640px) {
-            #secBoard table { min-width: 0 !important; }
-            #secBoard thead { display: none; }
-            #secBoard tbody tr { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; padding: 10px 4px; }
-            #secBoard tbody td { display: block; width: auto !important; text-align: left !important; padding: 2px 8px !important; }
-            #secBoard tbody td:first-child { grid-column: 1 / -1; }
         }
     </style>
 </head>
@@ -1069,17 +1038,15 @@
 
         <!-- WADAH 2: PROGRES TAGIHAN -->
         <div id="progresContainer" class="hidden space-y-4 sm:space-y-6 pb-8">
-            <!-- TOMBOL KATEGORI TAGIHAN (RATA TENGAH) -->
-            <div class="w-full flex justify-center items-center">
-                <div class="mx-auto bg-slate-100 p-1.5 rounded-xl inline-flex max-w-full overflow-x-auto text-sm font-semibold shadow-inner border border-slate-200 hide-scrollbar">
-                    <button onclick="setBillingType('prepaid')" id="btnPrepaid" class="px-5 py-2.5 rounded-lg bg-white shadow-sm text-rose-600 transition-all flex-shrink-0 text-center whitespace-nowrap">Prabayar</button>
-                    <button onclick="setBillingType('postpaid')" id="btnPostpaid" class="px-5 py-2.5 rounded-lg text-slate-500 hover:text-slate-700 transition-all flex-shrink-0 text-center whitespace-nowrap">Pascabayar</button>
-                    <button onclick="setBillingType('all')" id="btnAllType" class="px-5 py-2.5 rounded-lg text-slate-500 hover:text-slate-700 transition-all flex-shrink-0 text-center whitespace-nowrap">Semua Tagihan</button>
+            <div class="flex flex-col items-center justify-center">
+                <div class="bg-slate-100 p-1.5 rounded-xl inline-flex w-full sm:w-auto overflow-x-auto text-sm font-semibold shadow-inner border border-slate-200 hide-scrollbar">
+                    <button onclick="setBillingType('prepaid')" id="btnPrepaid" class="px-5 py-2.5 rounded-lg bg-white shadow-sm text-rose-600 transition-all flex-shrink-0 sm:flex-none text-center whitespace-nowrap">Prabayar</button>
+                    <button onclick="setBillingType('postpaid')" id="btnPostpaid" class="px-5 py-2.5 rounded-lg text-slate-500 hover:text-slate-700 transition-all flex-shrink-0 sm:flex-none text-center whitespace-nowrap">Pascabayar</button>
+                    <button onclick="setBillingType('all')" id="btnAllType" class="px-5 py-2.5 rounded-lg text-slate-500 hover:text-slate-700 transition-all flex-shrink-0 sm:flex-none text-center whitespace-nowrap">Semua Tagihan</button>
                 </div>
             </div>
 
-            <!-- FILTER CARD (Sticky di Desktop + Preset Tanggal + Chip Aktif) -->
-            <div id="uxFilter" class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4 mt-2">
+            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4 mt-2">
                 <div class="flex items-center justify-between">
                     <div>
                         <h3 class="text-sm font-bold text-slate-700">Filter Pencapaian</h3>
@@ -1105,26 +1072,11 @@
                         <span class="text-slate-300">|</span>
                         <input type="date" id="progEndDate" onclick="try{this.showPicker();}catch(e){}" onchange="applyProgresFilter()" class="text-sm bg-transparent border-none focus:outline-none focus:ring-0 text-slate-700 cursor-pointer font-medium w-[110px] sm:w-[120px]">
                     </div>
-                    <div class="flex gap-1.5">
-                        <button type="button" class="ux-btn" data-ux-pre="today">Hari ini</button>
-                        <button type="button" class="ux-btn" data-ux-pre="7">7 hari</button>
-                        <button type="button" class="ux-btn" data-ux-pre="month">Bulan ini</button>
-                    </div>
                 </div>
-                <div id="uxChips" class="flex flex-wrap gap-2 pt-2 border-t border-slate-100"></div>
-                <p class="text-xs text-slate-500">Filter Tgl Lunas berlaku untuk KPI, tren, dan leaderboard. Peta selalu menampilkan tunggakan aktif saat ini.</p>
             </div>
 
-            <!-- NAVIGASI LONCAT BAGIAN -->
-            <nav class="flex gap-2 overflow-x-auto hide-scrollbar" aria-label="Loncat ke bagian">
-                <button type="button" class="ux-btn whitespace-nowrap" data-ux-nav="secKpi">Ringkasan</button>
-                <button type="button" class="ux-btn whitespace-nowrap" data-ux-nav="secTren">Tren</button>
-                <button type="button" class="ux-btn whitespace-nowrap" data-ux-nav="progresMapMount">Peta</button>
-                <button type="button" class="ux-btn whitespace-nowrap" data-ux-nav="secBoard">Leaderboard</button>
-            </nav>
-
             <!-- LAYOUT 3 KARTU KPI -->
-            <div id="secKpi" class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-stretch">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-stretch">
                 <!-- Kartu Biru -->
                 <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-blue-500 border-t border-r border-b border-slate-100 flex flex-col justify-center h-full">
                     <p id="titleTarget" class="text-xs font-semibold uppercase text-slate-400 mb-1">Target Tagihan (Tgl 25)</p>
@@ -1136,27 +1088,25 @@
                     <p class="text-xs font-semibold uppercase text-slate-400 mb-1">Sudah Dibayar (Lunas)</p>
                     <h3 id="progLunasRp" class="text-2xl sm:text-3xl font-bold text-emerald-600 mb-1">Rp 0</h3>
                     <p id="progLunasPlg" class="text-xs sm:text-sm font-medium text-emerald-500">0 Pelanggan Lunas</p>
-                    <p id="uxMom" class="text-xs font-semibold mt-1"></p>
                 </div>
                 <!-- Kartu Merah -->
                 <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-rose-500 border-t border-r border-b border-slate-100 flex flex-col justify-between h-full gap-4">
                     <div>
-                        <p class="text-xs font-semibold uppercase text-rose-400 mb-1">Tunggakan Aktif (Belum Bayar)</p>
+                        <p class="text-xs font-semibold uppercase text-rose-400 mb-1">Sisa Tagihan (Tunggakan)</p>
                         <h3 id="progSisaRp" class="text-2xl sm:text-3xl font-bold text-rose-600 mb-1">Rp 0</h3>
-                        <p id="progSisaPlg" class="text-xs sm:text-sm font-medium text-rose-500">0 Pelanggan Tunggakan Aktif</p>
+                        <p id="progSisaPlg" class="text-xs sm:text-sm font-medium text-rose-500">0 Pelanggan Tertunggak</p>
 
                         <!-- RINCIAN SISA TAGIHAN -->
                         <div class="mt-4 pt-3 border-t border-dashed border-slate-200 space-y-1.5">
-                            <div onclick="document.getElementById('progresMapMount').scrollIntoView({ behavior: 'smooth' })" class="flex justify-between items-center cursor-pointer hover:underline">
+                            <div class="flex justify-between items-center">
                                 <span class="text-[11px] font-medium text-slate-500 flex items-center gap-1.5">
                                     <svg class="w-3.5 h-3.5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                     </svg>
-                                    Lihat sebaran di peta
+                                    Tunggakan Aktif:
                                 </span>
-                                <span id="detAktif" class="text-xs font-bold text-rose-600">↓</span>
+                                <span id="detAktif" class="text-xs font-bold text-rose-600">0 Plg</span>
                             </div>
-                            <p id="uxCap" class="text-[11px] text-slate-400 pt-1">Tidak ditagih lagi (bukan tunggakan aktif):</p>
                             <div class="flex justify-between items-center">
                                 <span class="text-[11px] font-medium text-slate-500 flex items-center gap-1.5">
                                     <svg class="w-3.5 h-3.5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
@@ -1204,11 +1154,7 @@
             <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-center space-y-3">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2">
                     <div>
-                        <h3 class="text-sm font-bold text-slate-700">
-                            Pencapaian <span id="labelCapaianTeks">Nasional</span>
-                            <button type="button" id="uxDef" class="ux-btn ml-1" style="padding:0 7px" aria-label="Definisi Capaian" onclick="document.getElementById('uxDefTx').classList.toggle('hidden')">ⓘ</button>
-                        </h3>
-                        <p id="uxDefTx" class="hidden text-xs text-slate-500 mt-1">Capaian = pelanggan lunas ÷ pelanggan ditagih (berbasis jumlah pelanggan). Di tab Pencapaian Collection, capaian berbasis Rupiah.</p>
+                        <h3 class="text-sm font-bold text-slate-700">Pencapaian <span id="labelCapaianTeks">Nasional</span></h3>
                     </div>
                     <div class="flex items-center gap-3">
                         <span id="momBadge" class="hidden px-2.5 py-1 rounded-lg text-xs font-bold items-center gap-1"></span>
@@ -1225,7 +1171,7 @@
                 <div class="flex items-center gap-3 w-full sm:w-auto">
                     <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-lg flex-shrink-0">
                         <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                         </svg>
                     </div>
                     <div>
@@ -1248,7 +1194,7 @@
             </div>
 
             <!-- GRAFIK TREN -->
-            <div id="secTren" class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                 <h3 id="trenTitle" class="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
                     <svg class="w-4 h-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
@@ -1261,11 +1207,11 @@
             <!-- PETA SEBARAN TUNGGAKAN AKTIF (modul progres-map.js) -->
             <div id="progresMapMount"></div>
 
-            <!-- LEADERBOARD REGION TERTINGGI (TANPA FILTER) -->
-            <div id="secBoard" class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <!-- LEADERBOARD REGION -->
+            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                 <h3 class="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55-.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
-                    <span>Leaderboard Region Tertinggi</span>
+                    Leaderboard Region Tertinggi
                 </h3>
                 <div class="overflow-x-auto table-scroll">
                     <table class="w-full text-left border-collapse table-fixed min-w-[500px]">
@@ -1308,11 +1254,6 @@
             all: { periode: 'ALL', region: 'ALL', startDate: '', endDate: '' }
         };
 
-        const UX = { ready: false };
-        let startHashQuery = location.hash.startsWith('#progres')
-            ? new URLSearchParams(location.hash.split('?')[1] || '')
-            : null;
-
         const bulanMap = { 'Januari': 1, 'Februari': 2, 'Maret': 3, 'April': 4, 'Mei': 5, 'Juni': 6, 'Juli': 7, 'Agustus': 8, 'September': 9, 'Oktober': 10, 'November': 11, 'Desember': 12 };
         const bulanNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
@@ -1325,18 +1266,6 @@
         /* ==========================================================
             HELPER UMUM
         ========================================================== */
-        const $id = (id) => document.getElementById(id);
-        const upStr = (v) => String(v == null ? '' : v).trim().toUpperCase();
-        const trimStr = (v) => String(v == null ? '' : v).trim();
-
-        function showToast(msg) {
-            const d = document.createElement('div');
-            d.textContent = msg;
-            d.className = 'fixed bottom-4 left-1/2 -translate-x-1/2 z-[4000] px-4 py-2 rounded-xl bg-slate-800 text-white text-xs font-semibold shadow-lg';
-            document.body.appendChild(d);
-            setTimeout(() => d.remove(), 2600);
-        }
-
         function escapeHtml(v) {
             return String(v == null ? '' : v)
                 .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -1379,11 +1308,11 @@
             const obj = document.getElementById(id);
             if (!obj) return;
             endValue = Math.round(Number(endValue) || 0);
-            const token = (obj._animToken = (obj._animToken || 0) + 1);
+            const token = (obj._animToken = (obj._animToken = (obj._animToken || 0) + 1));
             const suffix = customTextAfter ? " " + customTextAfter : "";
             const fmt = (n) => (isCurrency ? formatRupiah(n) : n.toLocaleString('id-ID')) + suffix;
             let startTimestamp = null;
-            const duration = 400;
+            const duration = 1200;
             const step = (timestamp) => {
                 if (obj._animToken !== token) return;
                 if (!startTimestamp) startTimestamp = timestamp;
@@ -1483,7 +1412,7 @@
             showLoading("Memuat Dashboard", "Sinkronisasi data dari server...");
             try {
                 await fetchData(false);
-                switchTab(startHashQuery ? 'progres' : 'sla3');
+                switchTab('sla3');
             } catch (error) {
                 console.error("Gagal memuat data:", error);
                 alert("Gagal memuat data dari server: " + error.message);
@@ -1512,9 +1441,9 @@
                 try {
                     actionCallback();
                 } finally {
-                    setTimeout(() => { wrapper.classList.remove('is-animating'); }, 30);
+                    setTimeout(() => { wrapper.classList.remove('is-animating'); }, 50);
                 }
-            }, 120);
+            }, 350);
         }
 
         /* ==========================================================
@@ -1536,10 +1465,6 @@
                 if (tab === 'sla3' || tab === 'sla4') {
                     slaBox.classList.remove('hidden'); progBox.classList.add('hidden');
                     if (tab === 'sla3') { btn3.className = activeSla; rawData = allData.sla3; }
-
-                    if (location.hash.startsWith('#progres')) {
-                        try { history.replaceState(null, '', location.pathname + location.search); } catch (_) { /* iframe */ }
-                    }
 
                     const periodSelect = document.getElementById('filterPeriodeSla');
                     periodSelect.innerHTML = '<option value="ALL">Semua Periode</option>';
@@ -1921,7 +1846,6 @@
         /* ==========================================================
             TAB PROGRES TAGIHAN
         ========================================================== */
-        const AKTIF_STATUS = ['BELUM BAYAR', 'BELUM LUNAS'];
         const isLunasRow = (row) => String(row['Status'] || '').trim().toUpperCase() === 'LUNAS';
         const hasPayDate = (row) => { const t = row['Tanggal_Bayar_Saja']; return !!t && t !== 'Belum Bayar'; };
         const inRange = (tgl, startStr, endStr) => !(startStr && tgl < startStr) && !(endStr && tgl > endStr);
@@ -1933,122 +1857,30 @@
             return tipe === currentBillingType;
         }
 
-        function getProgresFilterValues() {
-            return {
-                t: currentBillingType,
-                p: $id('filterPeriode').value,
-                r: $id('progFilterRegion').value,
-                s: $id('progStartDate').value,
-                e: $id('progEndDate').value
-            };
-        }
-
-        function renderUxChips() {
-            const f = getProgresFilterValues();
-            const labels = { prepaid: 'Prabayar', postpaid: 'Pascabayar', all: 'Semua tagihan' };
-            const fmtDate = (x) => x.split('-').reverse().join('/');
-            const addChip = (txt, key) => `<span class="ux-chip">${escapeHtml(txt)}<button type="button" data-ux-x="${key}" aria-label="Hapus filter ${escapeHtml(txt)}">×</button></span>`;
-
-            $id('uxChips').innerHTML = `<span class="ux-chip base">${labels[f.t]}</span>`
-                + (f.p !== 'ALL' ? addChip(f.p, 'p') : '')
-                + (f.r !== 'ALL' ? addChip('Region ' + f.r, 'r') : '')
-                + (f.s || f.e ? addChip('Tgl Lunas ' + (f.s ? fmtDate(f.s) : '…') + ' – ' + (f.e ? fmtDate(f.e) : '…'), 'd') : '');
-        }
-
-        function renderProgresLeaderboard() {
-            const f = getProgresFilterValues();
-            const map = {};
-
-            allData.progres.filter((r) => rowMatchesBillingType(r)
-                && (f.p === 'ALL' || trimStr(r.Periode) === f.p)
-            ).forEach((r) => {
-                const k = upStr(r.Region);
-                if (!k) return;
-                const o = map[k] || (map[k] = { k, tp: 0, tr: 0, lp: 0, lr: 0 });
-                const p = Number(r.Jumlah_Pelanggan) || 0, v = Number(r.Jumlah_Rupiah) || 0;
-                o.tp += p; o.tr += v;
-                if (isLunasInRange(r, f.s, f.e)) { o.lp += p; o.lr += v; }
-            });
-
-            const list = Object.values(map)
-                .map((o) => ({ ...o, pct: o.tp ? (o.lp / o.tp) * 100 : 0 }))
-                .sort((a, b) => b.pct - a.pct || b.lp - a.lp);
-
-            const medalGold = `<svg class="w-4 h-4 text-amber-400 inline-block" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
-            const medalSilver = `<svg class="w-4 h-4 text-slate-400 inline-block" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
-            const medalBronze = `<svg class="w-4 h-4 text-amber-700 inline-block" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
-
-            $id('progresBody').innerHTML = list.map((o, i) => {
-                const bad = o.pct >= 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700';
-                const rankBadge = i === 0 ? medalGold : i === 1 ? medalSilver : i === 2 ? medalBronze : `<span class="text-slate-400 font-semibold">${i + 1}</span>`;
-                return `<tr class="animate-row border-b border-slate-100 hover:bg-slate-50/80 transition-colors" style="animation-delay:${Math.min(i, 20) * 25}ms">
-                    <td class="py-3 px-3 w-4/12"><div class="flex items-center gap-2.5 font-bold text-slate-700 text-xs sm:text-sm"><span class="w-5 text-center flex-shrink-0">${rankBadge}</span><span class="truncate">${escapeHtml(o.k)}</span></div></td>
-                    <td class="py-3 px-3 w-3/12 text-center whitespace-nowrap"><div class="text-xs sm:text-sm font-semibold text-slate-700">${o.lp.toLocaleString('id-ID')}</div><div class="text-[11px] text-slate-400">dari ${o.tp.toLocaleString('id-ID')}</div></td>
-                    <td class="py-3 px-3 w-3/12 text-center whitespace-nowrap"><div class="text-xs sm:text-sm font-semibold text-slate-700">${formatRupiah(o.lr)}</div><div class="text-[11px] text-slate-400">dari ${formatRupiah(o.tr)}</div></td>
-                    <td class="py-3 px-3 w-2/12 text-right whitespace-nowrap"><span class="inline-block px-2.5 py-1 rounded-md text-xs sm:text-sm font-bold ${bad}">${o.pct.toFixed(1)}%</span></td></tr>`;
-            }).join('') || '<tr><td colspan="4" class="p-4 text-center text-slate-500">Belum ada data untuk filter ini.</td></tr>';
-        }
-
-        function saveProgresHash() {
-            const f = getProgresFilterValues();
-            try {
-                history.replaceState(null, '', '#progres?' + new URLSearchParams({
-                    t: f.t, p: f.p, r: f.r, s: f.s, e: f.e
-                }));
-            } catch (_) { /* iframe */ }
-        }
-
         function initProgresTab() {
             const regionSelect = document.getElementById('progFilterRegion');
             regionSelect.innerHTML = '<option value="ALL">Semua Region</option>';
             const regions = [...new Set(allData.progres.map(row => row['Region']).filter(Boolean))].sort();
             regions.forEach(r => { const opt = document.createElement('option'); opt.value = r; opt.innerText = r; regionSelect.appendChild(opt); });
+            regionSelect.value = 'ALL';
+            
+            const initTypeData = allData.progres;
+            const prepaidPeriods = [...new Set(initTypeData.filter(r => String(r.Tipe_Layanan).trim().toLowerCase() === 'prepaid').map(r => r.Periode).filter(Boolean))].sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
+            const postpaidPeriods = [...new Set(initTypeData.filter(r => String(r.Tipe_Layanan).trim().toLowerCase() === 'postpaid').map(r => r.Periode).filter(Boolean))].sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
 
-            if (!UX.ready) {
-                UX.ready = true;
-                regionSelect.value = 'ALL';
+            filterState.prepaid = { periode: prepaidPeriods.length > 0 ? prepaidPeriods[0] : 'ALL', region: 'ALL', startDate: '', endDate: '' };
+            filterState.postpaid = { periode: postpaidPeriods.length > 0 ? postpaidPeriods[0] : 'ALL', region: 'ALL', startDate: '', endDate: '' };
+            filterState.all = { periode: 'ALL', region: 'ALL', startDate: '', endDate: '' };
 
-                const initTypeData = allData.progres;
-                const prepaidPeriods = [...new Set(initTypeData.filter(r => String(r.Tipe_Layanan).trim().toLowerCase() === 'prepaid').map(r => r.Periode).filter(Boolean))].sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
-                const postpaidPeriods = [...new Set(initTypeData.filter(r => String(r.Tipe_Layanan).trim().toLowerCase() === 'postpaid').map(r => r.Periode).filter(Boolean))].sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
-
-                filterState.prepaid = { periode: prepaidPeriods.length > 0 ? prepaidPeriods[0] : 'ALL', region: 'ALL', startDate: '', endDate: '' };
-                filterState.postpaid = { periode: postpaidPeriods.length > 0 ? postpaidPeriods[0] : 'ALL', region: 'ALL', startDate: '', endDate: '' };
-                filterState.all = { periode: 'ALL', region: 'ALL', startDate: '', endDate: '' };
-
-                ProgresMap.mount('#progresMapMount', { webAppUrl: WEB_APP_URL });
-                ProgresMap.setProgresData(allData.progres);
-                setBillingType('prepaid', false);
-
-                if (startHashQuery) {
-                    const q = startHashQuery;
-                    startHashQuery = null;
-                    const t = q.get('t');
-                    if (['prepaid', 'postpaid', 'all'].includes(t) && t !== currentBillingType) {
-                        setBillingType(t, false);
-                    }
-                    const setSel = (id, v) => {
-                        const s = $id(id);
-                        if (v && [...s.options].some((o) => o.value === v)) s.value = v;
-                    };
-                    setSel('filterPeriode', q.get('p'));
-                    setSel('progFilterRegion', q.get('r'));
-                    $id('progStartDate').value = q.get('s') || '';
-                    $id('progEndDate').value = q.get('e') || '';
-                    applyProgresFilter();
-                }
-                return;
-            }
-
-            /* Mempertahankan filter saat pindah tab atau klik Sinkronkan Data */
+            ProgresMap.mount('#progresMapMount', { webAppUrl: WEB_APP_URL });
             ProgresMap.setProgresData(allData.progres);
-            setBillingType(currentBillingType, false);
+            setBillingType('prepaid', false);
         }
 
         function setBillingType(type, animate = true) {
             currentBillingType = type;
-            const actClass = "px-5 py-2.5 rounded-lg bg-white shadow-sm text-rose-600 transition-all flex-shrink-0 text-center whitespace-nowrap";
-            const inactClass = "px-5 py-2.5 rounded-lg text-slate-500 hover:text-slate-700 transition-all flex-shrink-0 text-center whitespace-nowrap";
+            const actClass = "px-5 py-2.5 rounded-lg bg-white shadow-sm text-rose-600 transition-all flex-shrink-0 sm:flex-none text-center whitespace-nowrap";
+            const inactClass = "px-5 py-2.5 rounded-lg text-slate-500 hover:text-slate-700 transition-all flex-shrink-0 sm:flex-none text-center whitespace-nowrap";
 
             document.getElementById('btnPrepaid').className = type === 'prepaid' ? actClass : inactClass;
             document.getElementById('btnPostpaid').className = type === 'postpaid' ? actClass.replace('text-rose-600', 'text-indigo-600') : inactClass;
@@ -2061,10 +1893,8 @@
 
             updateDropdownsForBillingType();
             
-            const pSel = document.getElementById('filterPeriode');
-            const rSel = document.getElementById('progFilterRegion');
-            pSel.value = [...pSel.options].some(o => o.value === filterState[type].periode) ? filterState[type].periode : 'ALL';
-            rSel.value = [...rSel.options].some(o => o.value === filterState[type].region) ? filterState[type].region : 'ALL';
+            document.getElementById('filterPeriode').value = filterState[type].periode;
+            document.getElementById('progFilterRegion').value = filterState[type].region;
             document.getElementById('progStartDate').value = filterState[type].startDate;
             document.getElementById('progEndDate').value = filterState[type].endDate;
 
@@ -2129,17 +1959,10 @@
         }
 
         function applyProgresFilter() {
-            const startInput = document.getElementById('progStartDate');
-            const endInput = document.getElementById('progEndDate');
-            if (startInput.value && endInput.value && startInput.value > endInput.value) {
-                [startInput.value, endInput.value] = [endInput.value, startInput.value];
-                showToast('Tanggal mulai dan akhir tertukar, sudah saya balik.');
-            }
-
             const selectedPeriod = document.getElementById('filterPeriode').value;
             const selectedRegion = document.getElementById('progFilterRegion').value;
-            const startStr = startInput.value;
-            const endStr = endInput.value;
+            const startStr = document.getElementById('progStartDate').value;
+            const endStr = document.getElementById('progEndDate').value;
 
             filterState[currentBillingType] = {
                 periode: selectedPeriod,
@@ -2161,7 +1984,7 @@
             }
 
             let gTargetPlg = 0, gTargetRp = 0, gLunasPlg = 0, gLunasRp = 0;
-            let gAktifPlg = 0, gAktifRp = 0, gBatalPlg = 0, gDeaktifPlg = 0, gLainPlg = 0, gLuarPlg = 0;
+            let gAktifPlg = 0, gBatalPlg = 0, gDeaktifPlg = 0, gLainPlg = 0, gLuarPlg = 0;
 
             cardBaseData.forEach(row => {
                 const plg = Number(row['Jumlah_Pelanggan'] || 0), rp = Number(row['Jumlah_Rupiah'] || 0);
@@ -2177,24 +2000,22 @@
                     gBatalPlg += plg;
                 } else if (statusUpper === 'BATAL DEAKTIVASI') {
                     gDeaktifPlg += plg;
-                } else if (AKTIF_STATUS.includes(statusUpper)) {
+                } else if (statusUpper === 'BELUM BAYAR' || statusUpper === 'BELUM LUNAS') {
                     gAktifPlg += plg;
-                    gAktifRp += rp;
                 } else {
                     gLainPlg += plg;
                 }
             });
 
+            const gSisaRp = gTargetRp - gLunasRp;
+            const gSisaPlg = gTargetPlg - gLunasPlg;
             const pctCapaian = gTargetPlg > 0 ? (gLunasPlg / gTargetPlg) * 100 : 0;
 
-            animateCounter('progTargetRp', gTargetRp, true);
-            animateCounter('progTargetPlg', gTargetPlg, false, "Pelanggan Ditagih");
-            animateCounter('progLunasRp', gLunasRp, true);
-            animateCounter('progLunasPlg', gLunasPlg, false, "Pelanggan Lunas");
-            animateCounter('progSisaRp', gAktifRp, true);
-            animateCounter('progSisaPlg', gAktifPlg, false, "Pelanggan Tunggakan Aktif");
+            animateCounter('progTargetRp', gTargetRp, true); animateCounter('progTargetPlg', gTargetPlg, false, "Pelanggan Ditagih");
+            animateCounter('progLunasRp', gLunasRp, true); animateCounter('progLunasPlg', gLunasPlg, false, "Pelanggan Lunas");
+            animateCounter('progSisaRp', Math.max(0, gSisaRp), true); animateCounter('progSisaPlg', Math.max(0, gSisaPlg), false, "Pelanggan Tertunggak");
 
-            document.getElementById('detAktif').innerText = '↓';
+            document.getElementById('detAktif').innerText = gAktifPlg.toLocaleString('id-ID') + ' Plg';
             document.getElementById('detBatal').innerText = gBatalPlg.toLocaleString('id-ID') + ' Plg';
             document.getElementById('detDeaktif').innerText = gDeaktifPlg.toLocaleString('id-ID') + ' Plg';
             document.getElementById('detLain').innerText = gLainPlg.toLocaleString('id-ID') + ' Plg';
@@ -2285,16 +2106,44 @@
                 momSummaryCard.classList.add('hidden');
             }
 
-            /* Badge perbandingan bulan lalu di kartu Lunas */
-            const uxMomEl = $id('uxMom');
-            const hasMom = !momBadge.classList.contains('hidden');
-            uxMomEl.textContent = hasMom ? momBadge.textContent.trim() + ' dibanding bulan lalu' : '';
-            uxMomEl.title = document.getElementById('momSubTitle').textContent;
-            uxMomEl.className = 'text-xs font-semibold mt-1 ' + (momBadge.textContent.includes('▲') ? 'text-emerald-600' : 'text-rose-600');
+            // Leaderboard Region
+            const regionStats = {};
+            boardBaseData.forEach(row => {
+                const reg = String(row['Region'] || '').trim().toUpperCase();
+                if (!reg) return;
+                if (!regionStats[reg]) regionStats[reg] = { targetPlg: 0, targetRp: 0, lunasPlg: 0, lunasRp: 0 };
+                const plg = Number(row['Jumlah_Pelanggan'] || 0), rp = Number(row['Jumlah_Rupiah'] || 0);
+                regionStats[reg].targetPlg += plg; regionStats[reg].targetRp += rp;
+                if (isLunasInRange(row, startStr, endStr)) {
+                    regionStats[reg].lunasPlg += plg; regionStats[reg].lunasRp += rp;
+                }
+            });
 
-            renderUxChips();
-            renderProgresLeaderboard();
-            saveProgresHash();
+            const boardData = Object.entries(regionStats)
+                .map(([reg, s]) => ({ region: reg, ...s, pct: s.targetPlg > 0 ? (s.lunasPlg / s.targetPlg) * 100 : 0 }))
+                .sort((a, b) => b.pct - a.pct);
+
+            let tbodyHtml = '';
+            const medalSvgGold = `<svg class="w-5 h-5 text-amber-400 drop-shadow-sm" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
+            const medalSvgSilver = `<svg class="w-5 h-5 text-slate-400 drop-shadow-sm" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
+            const medalSvgBronze = `<svg class="w-5 h-5 text-amber-700 drop-shadow-sm" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
+
+            boardData.forEach((row, index) => {
+                const medal = index === 0 ? medalSvgGold : 
+                              index === 1 ? medalSvgSilver : 
+                              index === 2 ? medalSvgBronze : 
+                              `<span class="text-slate-400 font-semibold w-5 inline-block text-center text-[12px]">${index + 1}</span>`;
+                
+                const badgeClass = row.pct >= 100 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700";
+
+                tbodyHtml += `<tr class="animate-row hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0" style="animation-delay: ${Math.min(index, 20) * 30}ms;">
+                    <td class="py-2.5 px-3 w-4/12"><div class="flex items-start space-x-2 sm:space-x-3"><span class="flex-shrink-0 mt-0.5">${medal}</span><div class="font-bold text-slate-700 leading-tight text-[11px] sm:text-sm pt-0.5">${escapeHtml(row.region)}</div></div></td>
+                    <td class="py-2.5 px-3 w-3/12 text-center align-middle whitespace-nowrap"><div class="text-[11px] sm:text-sm font-semibold text-slate-700">${row.lunasPlg.toLocaleString('id-ID')}</div><div class="text-[11px] text-slate-400 font-medium mt-0.5">dari ${row.targetPlg.toLocaleString('id-ID')}</div></td>
+                    <td class="py-2.5 px-3 w-3/12 text-center align-middle whitespace-nowrap"><div class="text-[11px] sm:text-sm font-semibold text-slate-700">${formatRupiah(row.lunasRp)}</div><div class="text-[11px] text-slate-400 font-medium mt-0.5">dari ${formatRupiah(row.targetRp)}</div></td>
+                    <td class="py-2.5 px-3 w-2/12 text-right align-middle whitespace-nowrap"><div class="inline-block px-2 py-1 rounded-md text-xs sm:text-sm font-bold shadow-sm ${badgeClass}">${row.pct.toFixed(1)}%</div></td>
+                </tr>`;
+            });
+            document.getElementById('progresBody').innerHTML = tbodyHtml || '<tr><td colspan="4" class="p-4 text-center text-slate-400">Belum ada data untuk kriteria ini</td></tr>';
 
             renderProgresTrendChartFromData(cardBaseData, selectedPeriod, selectedRegion, startStr, endStr);
             ProgresMap.setFilter({ tipe: currentBillingType, periode: selectedPeriod, region: selectedRegion });
@@ -2357,30 +2206,6 @@
                 }
             });
         }
-
-        /* Event delegation untuk chip filter atas, preset tanggal, & navigasi cepat */
-        document.addEventListener('click', (e) => {
-            const g = (sel) => e.target.closest(sel);
-            let el;
-            if ((el = g('[data-ux-x]'))) {
-                const k = el.dataset.uxX;
-                if (k === 'p') $id('filterPeriode').value = 'ALL';
-                else if (k === 'r') $id('progFilterRegion').value = 'ALL';
-                else { $id('progStartDate').value = ''; $id('progEndDate').value = ''; }
-                return applyProgresFilter();
-            }
-            if ((el = g('[data-ux-pre]'))) {
-                const n = new Date(), s = new Date(n), k = el.dataset.uxPre;
-                if (k === '7') s.setDate(n.getDate() - 6);
-                else if (k === 'month') s.setDate(1);
-                $id('progStartDate').value = toYMD(s);
-                $id('progEndDate').value = toYMD(n);
-                return applyProgresFilter();
-            }
-            if ((el = g('[data-ux-nav]'))) {
-                return $id(el.dataset.uxNav).scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-        });
 
         window.onload = () => {
             loadAllData();
