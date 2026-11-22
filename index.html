@@ -224,7 +224,7 @@
       p.plg += n; p.tgh += Number(r.Jumlah_Tagihan || 0); p.rp += Number(r.Jumlah_Rupiah || 0);
       p.kps[kp] = (p.kps[kp] || 0) + n;
     });
-    const pts = Object.values(grid).sort((a, b) => b.plg - a.plg); // besar digambar dulu, kecil di atas
+    const pts = Object.values(grid).sort((a, b) => b.plg - a.plg);
     let total = 0;
     pts.forEach((p) => {
       total += p.plg;
@@ -325,7 +325,7 @@
 
   function toggleFs(on) {
     S.fs = on == null ? !S.fs : on;
-    const w = document.getElementById('dashboardWrapper'); // transform pada wrapper merusak position:fixed
+    const w = document.getElementById('dashboardWrapper');
     S.box.classList.toggle('pm-fs', S.fs);
     if (w) w.style.transform = S.fs ? 'none' : '';
     document.body.style.overflow = S.fs ? 'hidden' : '';
@@ -400,7 +400,6 @@
     onShow() { if (S.map) { setTimeout(() => { S.map.invalidateSize(); S.sig = ''; render(); }, 120); } }
   };
 })(window);
-
     </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -623,7 +622,7 @@
                     <select id="filterPeriode" onchange="onPeriodChange()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-rose-500 bg-slate-50 font-semibold text-slate-700">
                         <option value="ALL">Semua Periode</option>
                     </select>
-                    <select id="progFilterRegion" onchange="applyProgresFilter()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-rose-500 bg-slate-50 font-semibold text-slate-700">
+                    <select id="progFilterRegion" onchange="onProgresRegionChange()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-rose-500 bg-slate-50 font-semibold text-slate-700">
                         <option value="ALL">Semua Region</option>
                     </select>
                     <div class="flex items-center gap-2 bg-white border border-slate-200 px-3.5 py-1.5 rounded-xl shadow-sm focus-within:border-rose-500 focus-within:ring-1 focus-within:ring-rose-500 transition-all">
@@ -674,7 +673,7 @@
                                     </svg>
                                     Batal (Cancel Billing):
                                 </span>
-                                <span id="detBatal" class="text-[11px] font-bold text-slate-600">0 Plg</span>
+                                <span id="detBatal" class="text-xs font-bold text-slate-600">0 Plg</span>
                             </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-[11px] font-medium text-slate-500 flex items-center gap-1.5">
@@ -767,23 +766,34 @@
             <!-- PETA SEBARAN TUNGGAKAN AKTIF (modul progres-map.js) -->
             <div id="progresMapMount"></div>
 
-            <!-- LEADERBOARD REGION -->
-            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <h3 class="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55-.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
-                    Leaderboard Region Tertinggi
-                </h3>
-                <div>
-                    <table class="w-full text-left border-collapse table-fixed">
+            <!-- LEADERBOARD HIERARKIS (REGION -> KP -> KABUPATEN/KOTA) -->
+            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden space-y-3">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h3 id="progLeaderboardTitle" class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55-.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
+                            Leaderboard Region Tertinggi
+                        </h3>
+                        <p id="progLeaderboardSub" class="text-[11px] text-slate-400 mt-0.5">Klik baris Region untuk melihat rincian per KP</p>
+                    </div>
+                    <div id="progLeaderboardNav" class="hidden flex flex-wrap items-center gap-2"></div>
+                </div>
+
+                <!-- Ringkasan KP Terpilih (muncul saat level Kabupaten/Kota) -->
+                <div id="progKpSummaryBanner" class="hidden px-3.5 py-2.5 rounded-xl bg-rose-50/70 border border-rose-200/80 flex flex-wrap items-center justify-between gap-2 text-xs"></div>
+
+                <div class="overflow-x-auto table-scroll">
+                    <table class="w-full text-left border-collapse table-fixed min-w-[540px]">
                         <thead>
                             <tr class="bg-slate-50 border-b border-slate-100">
-                                <th class="py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase w-5/12">Region</th>
-                                <th class="py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-center w-4/12">Status Pelanggan</th>
-                                <th class="py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-right w-3/12">Capaian</th>
+                                <th id="progLbColEntity" class="py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase w-4/12">Region</th>
+                                <th class="py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-center w-3/12">Pelanggan</th>
+                                <th class="py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-center w-3/12">Revenue</th>
+                                <th class="py-2.5 px-3 text-[11px] sm:text-xs font-semibold text-slate-500 uppercase text-right w-2/12">Capaian</th>
                             </tr>
                         </thead>
                         <tbody id="progresBody" class="divide-y divide-slate-100 text-sm">
-                            <tr><td colspan="3" class="p-4 text-center text-slate-400">Memuat data...</td></tr>
+                            <tr><td colspan="4" class="p-4 text-center text-slate-400">Memuat data...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -802,20 +812,16 @@
         let currentTab = 'sla3';
         let currentBillingType = 'prepaid';
         let trenChartInst = null, regionChartInst = null, progresTrenChartInst = null;
-        
-        // State & Instance Peta Leaflet
-
-        // Batas Koordinat Wilayah Indonesia (Sabang-Merauke, Miangas-Rote)
 
         let lbSortCol = 'default';
         let lbSortAsc = false;
         let lastFilteredData = [];
 
-        // State filter independen per tipe tagihan
+        // State filter independen per tipe tagihan (termasuk drill-down KP pada leaderboard)
         const filterState = {
-            prepaid: { periode: 'ALL', region: 'ALL', startDate: '', endDate: '' },
-            postpaid: { periode: 'ALL', region: 'ALL', startDate: '', endDate: '' },
-            all: { periode: 'ALL', region: 'ALL', startDate: '', endDate: '' }
+            prepaid: { periode: 'ALL', region: 'ALL', kp: 'ALL', startDate: '', endDate: '' },
+            postpaid: { periode: 'ALL', region: 'ALL', kp: 'ALL', startDate: '', endDate: '' },
+            all: { periode: 'ALL', region: 'ALL', kp: 'ALL', startDate: '', endDate: '' }
         };
 
         const bulanMap = { 'Januari': 1, 'Februari': 2, 'Maret': 3, 'April': 4, 'Mei': 5, 'Juni': 6, 'Juli': 7, 'Agustus': 8, 'September': 9, 'Oktober': 10, 'November': 11, 'Desember': 12 };
@@ -834,12 +840,6 @@
             return String(v == null ? '' : v)
                 .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-        }
-
-        function isValidIndoCoord(lat, lng) {
-            return !isNaN(lat) && !isNaN(lng) &&
-                   lat >= -11.2 && lat <= 6.2 &&
-                   lng >= 94.8 && lng <= 141.2;
         }
 
         function parseYMD(str) {
@@ -901,7 +901,7 @@
             const d = new Date(s);
             if (isNaN(d)) return s;
             return toYMD(d);
-        }
+        };
 
         function shiftMonthBack(dateStr) {
             if (!dateStr) return "";
@@ -1193,7 +1193,7 @@
             const titleEl = document.getElementById('regionChartTitle');
             const svgTrophy = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55-.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>`;
             if (titleEl) {
-                titleEl.innerHTML = isAllRegion ? `${svgTrophy} Top Kinerja Region` : `${svgTrophy} Top Kinerja KP - Region ${selectedRegion}`;
+                titleEl.innerHTML = isAllRegion ? `${svgTrophy} Top Kinerja Region` : `${svgTrophy} Top Kinerja KP - Region ${escapeHtml(selectedRegion)}`;
             }
 
             const colors = sorted.map(() => isAllRegion ? '#6366f1' : '#10b981');
@@ -1434,9 +1434,9 @@
             const prepaidPeriods = [...new Set(initTypeData.filter(r => String(r.Tipe_Layanan).trim().toLowerCase() === 'prepaid').map(r => r.Periode).filter(Boolean))].sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
             const postpaidPeriods = [...new Set(initTypeData.filter(r => String(r.Tipe_Layanan).trim().toLowerCase() === 'postpaid').map(r => r.Periode).filter(Boolean))].sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
 
-            filterState.prepaid.periode = prepaidPeriods.length > 0 ? prepaidPeriods[0] : 'ALL';
-            filterState.postpaid.periode = postpaidPeriods.length > 0 ? postpaidPeriods[0] : 'ALL';
-            filterState.all.periode = 'ALL';
+            filterState.prepaid = { periode: prepaidPeriods.length > 0 ? prepaidPeriods[0] : 'ALL', region: 'ALL', kp: 'ALL', startDate: '', endDate: '' };
+            filterState.postpaid = { periode: postpaidPeriods.length > 0 ? postpaidPeriods[0] : 'ALL', region: 'ALL', kp: 'ALL', startDate: '', endDate: '' };
+            filterState.all = { periode: 'ALL', region: 'ALL', kp: 'ALL', startDate: '', endDate: '' };
 
             ProgresMap.mount('#progresMapMount', { webAppUrl: WEB_APP_URL });
             setBillingType('prepaid', false);
@@ -1482,6 +1482,28 @@
             applyProgresFilter();
         }
 
+        function onProgresRegionChange() {
+            filterState[currentBillingType].region = document.getElementById('progFilterRegion').value;
+            filterState[currentBillingType].kp = 'ALL';
+            applyProgresFilter();
+        }
+
+        function drillDownProgresRegion(regionName) {
+            const regSelect = document.getElementById('progFilterRegion');
+            const matchOpt = [...regSelect.options].find(o => o.value.toUpperCase() === String(regionName).toUpperCase());
+            if (matchOpt) {
+                regSelect.value = matchOpt.value;
+            }
+            filterState[currentBillingType].region = regSelect.value;
+            filterState[currentBillingType].kp = 'ALL';
+            applyProgresFilter();
+        }
+
+        function drillDownProgresKp(kpName) {
+            filterState[currentBillingType].kp = kpName || 'ALL';
+            applyProgresFilter();
+        }
+
         function resetProgresFilter() {
             const typeFilteredData = allData.progres.filter(rowMatchesBillingType);
             const periods = [...new Set(typeFilteredData.map(row => row['Periode']).filter(Boolean))].sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
@@ -1500,6 +1522,7 @@
             filterState[currentBillingType] = {
                 periode: defaultPeriod,
                 region: 'ALL',
+                kp: 'ALL',
                 startDate: '',
                 endDate: ''
             };
@@ -1523,15 +1546,175 @@
             return { totalPlg, totalRp };
         }
 
+        function renderProgresLeaderboard(boardBaseData, cardBaseData, selectedRegion, startStr, endStr) {
+            const titleEl = document.getElementById('progLeaderboardTitle');
+            const subEl = document.getElementById('progLeaderboardSub');
+            const navEl = document.getElementById('progLeaderboardNav');
+            const bannerEl = document.getElementById('progKpSummaryBanner');
+            const colEntityEl = document.getElementById('progLbColEntity');
+            const tbody = document.getElementById('progresBody');
+
+            const trophySvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500 flex-shrink-0"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55-.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>`;
+            const pinSvg = `<svg class="w-4 h-4 text-rose-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>`;
+
+            let selectedKp = filterState[currentBillingType].kp || 'ALL';
+            if (selectedRegion === 'ALL') {
+                selectedKp = 'ALL';
+                filterState[currentBillingType].kp = 'ALL';
+            } else if (selectedKp !== 'ALL') {
+                const kpExists = cardBaseData.some(r => String(r['KP'] || '(Kosong)').trim().toUpperCase() === selectedKp.toUpperCase());
+                if (!kpExists) {
+                    selectedKp = 'ALL';
+                    filterState[currentBillingType].kp = 'ALL';
+                }
+            }
+
+            let level = 'region';
+            if (selectedRegion !== 'ALL' && selectedKp !== 'ALL') level = 'kabupaten';
+            else if (selectedRegion !== 'ALL') level = 'kp';
+
+            const statsMap = {};
+            const sourceRows = level === 'region' ? boardBaseData : cardBaseData;
+
+            sourceRows.forEach(row => {
+                let key = '';
+                if (level === 'region') {
+                    key = String(row['Region'] || '').trim().toUpperCase();
+                    if (!key) return;
+                } else if (level === 'kp') {
+                    key = String(row['KP'] || '(Kosong)').trim() || '(Kosong)';
+                } else {
+                    const rowKp = String(row['KP'] || '(Kosong)').trim();
+                    if (rowKp.toUpperCase() !== selectedKp.toUpperCase()) return;
+                    key = String(row['Kabupaten'] || row['kabupaten'] || '(Tidak Terdeteksi)').trim() || '(Tidak Terdeteksi)';
+                }
+
+                if (!statsMap[key]) statsMap[key] = { label: key, targetPlg: 0, targetRp: 0, lunasPlg: 0, lunasRp: 0 };
+                const plg = Number(row['Jumlah_Pelanggan'] || 0);
+                const rp = Number(row['Jumlah_Rupiah'] || 0);
+                statsMap[key].targetPlg += plg;
+                statsMap[key].targetRp += rp;
+                if (isLunasInRange(row, startStr, endStr)) {
+                    statsMap[key].lunasPlg += plg;
+                    statsMap[key].lunasRp += rp;
+                }
+            });
+
+            const boardData = Object.values(statsMap)
+                .map(s => ({ ...s, pct: s.targetPlg > 0 ? (s.lunasPlg / s.targetPlg) * 100 : 0 }))
+                .sort((a, b) => (b.pct - a.pct) || (b.lunasPlg - a.lunasPlg));
+
+            // Header, subjudul, dan navigasi breadcrumb
+            if (level === 'region') {
+                titleEl.innerHTML = `${trophySvg} Leaderboard Region Tertinggi`;
+                subEl.innerText = 'Klik baris Region untuk melihat rincian per KP';
+                colEntityEl.innerText = 'Region';
+                navEl.classList.add('hidden');
+                bannerEl.classList.add('hidden');
+            } else if (level === 'kp') {
+                titleEl.innerHTML = `${trophySvg} Leaderboard KP Tertinggi - Region ${escapeHtml(selectedRegion)}`;
+                subEl.innerText = 'Klik baris KP untuk melihat rincian per Kabupaten/Kota';
+                colEntityEl.innerText = 'Kantor Perwakilan (KP)';
+                navEl.classList.remove('hidden');
+                navEl.innerHTML = `
+                    <button type="button" data-nav="all-region" class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors">
+                        ← Semua Region
+                    </button>
+                    <span class="text-[11px] text-slate-400 font-medium">Nasional / <strong class="text-slate-600">${escapeHtml(selectedRegion)}</strong></span>
+                `;
+                bannerEl.classList.add('hidden');
+            } else {
+                titleEl.innerHTML = `${pinSvg} Rincian Kabupaten/Kota - KP ${escapeHtml(selectedKp)}`;
+                subEl.innerText = `Distribusi pelanggan dan revenue per Kabupaten/Kota di Region ${selectedRegion}`;
+                colEntityEl.innerText = 'Kabupaten / Kota';
+                navEl.classList.remove('hidden');
+                navEl.innerHTML = `
+                    <button type="button" data-nav="back-kp" class="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-semibold transition-colors">
+                        ← Daftar KP
+                    </button>
+                    <span class="text-[11px] text-slate-400 font-medium">
+                        <button type="button" data-nav="all-region" class="hover:underline text-slate-500">Nasional</button> /
+                        <button type="button" data-nav="back-kp" class="hover:underline text-slate-500">${escapeHtml(selectedRegion)}</button> /
+                        <strong class="text-slate-700">${escapeHtml(selectedKp)}</strong>
+                    </span>
+                `;
+
+                const kpTot = boardData.reduce((acc, r) => {
+                    acc.targetPlg += r.targetPlg; acc.targetRp += r.targetRp;
+                    acc.lunasPlg += r.lunasPlg; acc.lunasRp += r.lunasRp;
+                    return acc;
+                }, { targetPlg: 0, targetRp: 0, lunasPlg: 0, lunasRp: 0 });
+                const kpPct = kpTot.targetPlg > 0 ? (kpTot.lunasPlg / kpTot.targetPlg) * 100 : 0;
+
+                bannerEl.classList.remove('hidden');
+                bannerEl.innerHTML = `
+                    <span class="text-rose-900 font-semibold">Total KP ${escapeHtml(selectedKp)}:</span>
+                    <div class="flex flex-wrap items-center gap-3 text-slate-700">
+                        <span>Pelanggan: <strong class="text-emerald-700">${kpTot.lunasPlg.toLocaleString('id-ID')}</strong> / ${kpTot.targetPlg.toLocaleString('id-ID')}</span>
+                        <span class="text-slate-300">|</span>
+                        <span>Revenue: <strong class="text-emerald-700">${formatRupiah(kpTot.lunasRp)}</strong> / ${formatRupiah(kpTot.targetRp)}</span>
+                        <span class="text-slate-300">|</span>
+                        <span>Capaian: <strong class="text-rose-700">${kpPct.toFixed(1)}%</strong></span>
+                    </div>
+                `;
+            }
+
+            const medalSvgGold = `<svg class="w-5 h-5 text-amber-400 drop-shadow-sm" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
+            const medalSvgSilver = `<svg class="w-5 h-5 text-slate-400 drop-shadow-sm" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
+            const medalSvgBronze = `<svg class="w-5 h-5 text-amber-700 drop-shadow-sm" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
+            const chevronSvg = `<svg class="w-3.5 h-3.5 text-slate-400 group-hover:text-rose-500 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>`;
+
+            const isClickable = level === 'region' || level === 'kp';
+            let tbodyHtml = '';
+
+            boardData.forEach((row, index) => {
+                const medal = index === 0 ? medalSvgGold :
+                              index === 1 ? medalSvgSilver :
+                              index === 2 ? medalSvgBronze :
+                              `<span class="text-slate-400 font-semibold w-5 inline-block text-center text-[12px]">${index + 1}</span>`;
+
+                const badgeClass = row.pct >= 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700';
+                const rowInteractClass = isClickable ? 'group cursor-pointer hover:bg-rose-50/60' : 'hover:bg-slate-50';
+                const drillAttrs = isClickable ? `data-drill-level="${level}" data-drill-val="${escapeHtml(row.label)}"` : '';
+
+                tbodyHtml += `<tr ${drillAttrs} class="animate-row transition-colors border-b border-slate-100 last:border-0 ${rowInteractClass}" style="animation-delay: ${Math.min(index, 20) * 30}ms;">
+                    <td class="py-2.5 px-3 w-4/12">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-start space-x-2 sm:space-x-3 min-w-0">
+                                <span class="flex-shrink-0 mt-0.5">${medal}</span>
+                                <div class="font-bold text-slate-700 group-hover:text-rose-700 transition-colors leading-tight text-[11px] sm:text-sm pt-0.5 truncate">${escapeHtml(row.label)}</div>
+                            </div>
+                            ${isClickable ? chevronSvg : ''}
+                        </div>
+                    </td>
+                    <td class="py-2.5 px-3 w-3/12 text-center align-middle whitespace-nowrap">
+                        <div class="text-[11px] sm:text-sm font-semibold text-slate-700">${row.lunasPlg.toLocaleString('id-ID')}</div>
+                        <div class="text-[11px] text-slate-400 font-medium mt-0.5">dari ${row.targetPlg.toLocaleString('id-ID')}</div>
+                    </td>
+                    <td class="py-2.5 px-3 w-3/12 text-center align-middle whitespace-nowrap">
+                        <div class="text-[11px] sm:text-sm font-semibold text-slate-700">${formatRupiah(row.lunasRp)}</div>
+                        <div class="text-[11px] text-slate-400 font-medium mt-0.5">dari ${formatRupiah(row.targetRp)}</div>
+                    </td>
+                    <td class="py-2.5 px-3 w-2/12 text-right align-middle whitespace-nowrap">
+                        <div class="inline-block px-2 py-1 rounded-md text-xs sm:text-sm font-bold shadow-sm ${badgeClass}">${row.pct.toFixed(1)}%</div>
+                    </td>
+                </tr>`;
+            });
+
+            tbody.innerHTML = tbodyHtml || '<tr><td colspan="4" class="p-4 text-center text-slate-400">Belum ada data untuk kriteria ini</td></tr>';
+        }
+
         function applyProgresFilter() {
             const selectedPeriod = document.getElementById('filterPeriode').value;
             const selectedRegion = document.getElementById('progFilterRegion').value;
             const startStr = document.getElementById('progStartDate').value;
             const endStr = document.getElementById('progEndDate').value;
+            const currentKp = filterState[currentBillingType].kp || 'ALL';
 
             filterState[currentBillingType] = {
                 periode: selectedPeriod,
                 region: selectedRegion,
+                kp: selectedKp,
                 startDate: startStr,
                 endDate: endStr
             };
@@ -1547,16 +1730,6 @@
             if (selectedRegion !== 'ALL') {
                 cardBaseData = cardBaseData.filter(row => String(row['Region'] || '').trim().toUpperCase() === String(selectedRegion).trim().toUpperCase());
             }
-
-            const lbRegionStats = {};
-            boardBaseData.forEach(row => {
-                const reg = String(row['Region'] || '').trim().toUpperCase();
-                if (!reg) return;
-                if (!lbRegionStats[reg]) lbRegionStats[reg] = { targetPlg: 0, targetRp: 0, lunasPlg: 0, lunasRp: 0 };
-                const plg = Number(row['Jumlah_Pelanggan'] || 0), rp = Number(row['Jumlah_Rupiah'] || 0);
-                lbRegionStats[reg].targetPlg += plg; lbRegionStats[reg].targetRp += rp;
-                if (isLunasInRange(row, startStr, endStr)) { lbRegionStats[reg].lunasPlg += plg; lbRegionStats[reg].lunasRp += rp; }
-            });
 
             let gTargetPlg = 0, gTargetRp = 0, gLunasPlg = 0, gLunasRp = 0;
             let gAktifPlg = 0, gBatalPlg = 0, gDeaktifPlg = 0, gLainPlg = 0, gLuarPlg = 0;
@@ -1681,38 +1854,7 @@
                 momSummaryCard.classList.add('hidden');
             }
 
-            const boardData = Object.keys(lbRegionStats)
-                .map(reg => { const s = lbRegionStats[reg]; return { region: reg, ...s, pct: s.targetPlg > 0 ? (s.lunasPlg / s.targetPlg) * 100 : 0 }; })
-                .sort((a, b) => b.pct - a.pct);
-
-            let tbodyHtml = '';
-            boardData.forEach((row, index) => {
-                const medalSvgGold = `<svg class="w-5 h-5 text-amber-400 drop-shadow-sm" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
-                const medalSvgSilver = `<svg class="w-5 h-5 text-slate-400 drop-shadow-sm" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
-                const medalSvgBronze = `<svg class="w-5 h-5 text-amber-700 drop-shadow-sm" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
-                
-                const medal = index === 0 ? medalSvgGold : 
-                              index === 1 ? medalSvgSilver : 
-                              index === 2 ? medalSvgBronze : 
-                              `<span class="text-slate-400 font-semibold w-5 inline-block text-center text-[12px]">${index + 1}</span>`;
-                              
-                const isSelected = selectedRegion !== 'ALL' && row.region.toUpperCase() === selectedRegion.toUpperCase();
-                const rowHighlight = isSelected ? 'bg-rose-50/80 font-medium' : '';
-                const badgeClass = row.pct >= 100 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700";
-                
-                tbodyHtml += `<tr class="animate-row hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0 ${rowHighlight}" style="animation-delay: ${Math.min(index, 20) * 30}ms;">
-                        <td class="py-2 px-3 w-5/12">
-                            <div class="flex items-start space-x-2 sm:space-x-3">
-                                <span class="flex-shrink-0 mt-0.5">${medal}</span>
-                                <div class="font-bold text-slate-700 leading-tight text-[11px] sm:text-sm pt-0.5">${escapeHtml(row.region)}</div>
-                            </div>
-                        </td>
-                        <td class="py-2 px-3 w-4/12 text-center align-middle whitespace-nowrap"><div class="text-[11px] sm:text-sm font-semibold text-slate-700">${row.lunasPlg.toLocaleString('id-ID')}</div><div class="text-[11px] text-slate-400 font-medium mt-0.5">dari ${row.targetPlg.toLocaleString('id-ID')}</div></td>
-                        <td class="py-2 px-3 w-3/12 text-right align-middle whitespace-nowrap"><div class="inline-block px-2 py-1 rounded-md text-xs sm:text-sm font-bold shadow-sm ${badgeClass}">${row.pct.toFixed(1)}%</div></td>
-                    </tr>`;
-            });
-            document.getElementById('progresBody').innerHTML = tbodyHtml || '<tr><td colspan="3" class="p-4 text-center text-slate-400">Belum ada data untuk kriteria ini</td></tr>';
-
+            renderProgresLeaderboard(boardBaseData, cardBaseData, selectedRegion, startStr, endStr);
             renderProgresTrendChartFromData(cardBaseData, selectedPeriod, selectedRegion, startStr, endStr);
             ProgresMap.setFilter({ tipe: currentBillingType, periode: selectedPeriod, region: selectedRegion });
         }
@@ -1757,7 +1899,7 @@
             }
 
             const svgChartProg = `<svg class="w-4 h-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>`;
-            document.getElementById('trenTitle').innerHTML = `${svgChartProg} ${titleText}`;
+            document.getElementById('trenTitle').innerHTML = `${svgChartProg} ${escapeHtml(titleText)}`;
 
             let lineCol = '#f43f5e', bgCol = 'rgba(244, 63, 94, 0.1)';
             if (currentBillingType === 'postpaid') { lineCol = '#8b5cf6'; bgCol = 'rgba(139, 92, 246, 0.1)'; }
@@ -1775,16 +1917,23 @@
             });
         }
 
-        /* ==========================================================
-            PETA SEBARAN TUNGGAKAN AKTIF (LEAFLET 2-LAPIS)
-        ========================================================== */
-
-
-
-
-
-
-
+        // Event delegation untuk klik drill-down & breadcrumb pada Leaderboard Progres Tagihan
+        document.addEventListener('click', (e) => {
+            const drillRow = e.target.closest('#progresBody tr[data-drill-level]');
+            if (drillRow) {
+                const level = drillRow.dataset.drillLevel;
+                const val = drillRow.dataset.drillVal;
+                if (level === 'region') drillDownProgresRegion(val);
+                else if (level === 'kp') drillDownProgresKp(val);
+                return;
+            }
+            const navBtn = e.target.closest('#progLeaderboardNav [data-nav]');
+            if (navBtn) {
+                const action = navBtn.dataset.nav;
+                if (action === 'all-region') drillDownProgresRegion('ALL');
+                else if (action === 'back-kp') drillDownProgresKp('ALL');
+            }
+        });
 
         window.onload = () => {
             loadAllData();
