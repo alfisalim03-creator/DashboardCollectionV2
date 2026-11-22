@@ -23,7 +23,6 @@
   const TIPE = { prepaid: 'Prabayar', postpaid: 'Pascabayar', all: 'Semua tagihan' };
   const S = { root: null, map: null, layer: null, boundaryLayer: null, box: null, cfg: {}, data: [], progresData: [], ver: 0,
     f: { tipe: 'prepaid', periode: 'ALL', region: 'ALL' }, kp: 'ALL', kab: 'ALL', mode: 'ringkasan',
-    search: '', loadingKab: '', lastAreaKey: '', modeOnlySwitch: false,
     cache: {}, geoCache: {}, kabBounds: null, token: 0, abort: null, sig: '', fs: false, pts: [], timer: 0, hintT: 0, touch: false };
 
   const R = (n) => S.root.querySelector('[data-r="' + n + '"]');
@@ -88,10 +87,9 @@
   const I = {
     pin: '<svg class="w-4 h-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>',
     reset: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg>',
-    fs: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
+    fs: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5-5"/></svg>',
     fsx: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>',
-    chev: '<svg class="w-3.5 h-3.5 text-slate-400 group-hover:text-rose-500 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>',
-    search: '<svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M20 20l-3.5-3.5"/></svg>'
+    chev: '<svg class="w-3.5 h-3.5 text-slate-400 group-hover:text-rose-500 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>'
   };
 
   const SEG = 'px-3.5 py-2 min-h-[36px] rounded-lg text-xs font-semibold transition-all';
@@ -135,8 +133,8 @@
           <span data-r="foot" class="font-semibold text-slate-600"></span>
         </div>
       </div>
-      <aside class="min-w-0 flex flex-col max-h-[440px] xl:max-h-[660px] rounded-xl border border-slate-100 bg-slate-50/50 p-3">
-        <div class="flex items-start justify-between gap-2 mb-2 pb-2 border-b border-slate-200/70 flex-shrink-0">
+      <aside class="min-w-0 flex flex-col max-h-[420px] xl:max-h-[660px] rounded-xl border border-slate-100 bg-slate-50/50 p-3">
+        <div class="flex items-start justify-between gap-2 mb-2.5 pb-2 border-b border-slate-200/70 flex-shrink-0">
           <div class="min-w-0">
             <h4 data-r="rankTitle" class="text-sm font-bold text-slate-700 truncate">Area terpadat (KP)</h4>
             <p data-r="rankSub" class="text-[11px] text-slate-400 truncate">Klik KP untuk lihat rincian Kabupaten</p>
@@ -144,13 +142,6 @@
           <button type="button" data-r="rankBack" data-act="clear" class="hidden flex-shrink-0 px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-[11px] font-semibold shadow-sm">
             ← Daftar KP
           </button>
-        </div>
-        <div class="relative mb-2 flex-shrink-0">
-          <span class="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none">${I.search}</span>
-          <input type="text" data-r="rankSearch" placeholder="Cari KP atau region..." aria-label="Cari KP atau Kabupaten"
-            class="w-full pl-8 pr-7 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-200 transition-all" />
-          <button type="button" data-r="rankSearchClear" aria-label="Hapus pencarian"
-            class="hidden absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm font-bold leading-none px-1">×</button>
         </div>
         <ol data-r="rank" class="flex-1 min-h-0 space-y-1.5 overflow-y-auto pr-1"></ol>
         <div data-r="rankFoot" class="hidden flex-shrink-0 pt-2 mt-2 border-t border-slate-200/70 text-[11px] text-slate-600 flex items-center justify-between gap-2"></div>
@@ -191,7 +182,7 @@
 
   function pointInKabGeo(lat, lng, geoInfo) {
     if (!geoInfo) return true;
-    const pad = 0.0014;
+    const pad = 0.0014; // toleransi ~150m untuk pin di jalan perbatasan
     if (geoInfo.bbox) {
       const [sLat, nLat, wLng, eLng] = geoInfo.bbox;
       if (lat < sLat - pad || lat > nLat + pad || lng < wLng - pad || lng > eLng + pad) return false;
@@ -294,7 +285,7 @@
         }
 
         if (best && best.boundingbox && best.boundingbox.length === 4) {
-          const bb = best.boundingbox.map(Number);
+          const bb = best.boundingbox.map(Number); // [southLat, northLat, westLng, eastLng]
           const hasPoly = best.geojson && (best.geojson.type === 'Polygon' || best.geojson.type === 'MultiPolygon');
           const geoInfo = {
             bbox: bb,
@@ -318,11 +309,13 @@
     if (!geoInfo) return;
 
     if (geoInfo.geojson) {
+      // Halo putih tipis di bawah garis batas agar kontras di peta jalan maupun satelit
       g.L.geoJSON(geoInfo.geojson, {
         interactive: false,
         style: { color: '#ffffff', weight: 5.5, opacity: 0.85, fill: false }
       }).addTo(S.boundaryLayer);
 
+      // Garis batas administratif tegas warna rose
       g.L.geoJSON(geoInfo.geojson, {
         interactive: false,
         style: {
@@ -438,8 +431,6 @@
     const backBtn = R('rankBack');
     const rankEl = R('rank');
     const footEl = R('rankFoot');
-    const searchInp = R('rankSearch');
-    const q = String(S.search || '').trim().toLowerCase();
 
     const kpMap = {};
     all.forEach((r) => {
@@ -448,9 +439,7 @@
       o.plg += Number(r.Jumlah_Pelanggan || 0);
       o.rp += Number(r.Jumlah_Rupiah || 0);
     });
-    const kpList = Object.values(kpMap)
-      .sort((a, b) => b.plg - a.plg)
-      .map((item, idx) => ({ ...item, rank: idx + 1 }));
+    const kpList = Object.values(kpMap).sort((a, b) => b.plg - a.plg);
     S.top = kpList.slice(0, 4).map((x) => x.kp);
 
     if (S.kp === 'ALL') {
@@ -459,17 +448,12 @@
       subEl.textContent = 'Klik KP untuk lihat rincian Kabupaten';
       backBtn.classList.add('hidden');
       footEl.classList.add('hidden');
-      if (searchInp) searchInp.placeholder = 'Cari nama KP atau region...';
 
       const max = kpList.length ? kpList[0].plg || 1 : 1;
-      const visibleKp = q
-        ? kpList.filter((x) => x.kp.toLowerCase().includes(q) || x.region.toLowerCase().includes(q))
-        : kpList;
-
-      rankEl.innerHTML = visibleKp.map((x) => `<li>
+      rankEl.innerHTML = kpList.map((x, i) => `<li>
         <button type="button" data-kp-pick="${esc(x.kp)}" class="group w-full text-left p-2.5 rounded-xl bg-white border border-slate-100 hover:border-rose-300 hover:bg-rose-50/50 transition-colors shadow-2xs">
           <div class="flex items-start gap-2">
-            <span class="w-5 text-center text-[11px] font-bold text-slate-400 mt-0.5">${x.rank}</span>
+            <span class="w-5 text-center text-[11px] font-bold text-slate-400 mt-0.5">${i + 1}</span>
             <div class="min-w-0 flex-1">
               <div class="flex items-center justify-between gap-2">
                 <span class="text-xs font-bold text-slate-700 group-hover:text-rose-700 truncate">${esc(x.kp)}</span>
@@ -486,14 +470,13 @@
             <div class="h-1.5 rounded-full" style="width:${Math.max(3, (x.plg / max) * 100).toFixed(1)}%;background:${col(x.plg)}"></div>
           </div>
         </button>
-      </li>`).join('') || `<li class="text-xs text-slate-400 p-2">${q ? 'Tidak ada KP yang cocok dengan pencarian.' : 'Belum ada data untuk filter ini.'}</li>`;
+      </li>`).join('') || '<li class="text-xs text-slate-400 p-2">Belum ada data untuk filter ini.</li>';
       return null;
     }
 
     titleEl.textContent = 'Tunggakan per Kabupaten';
     subEl.textContent = 'KP ' + S.kp + ' · Klik untuk arahkan peta';
     backBtn.classList.remove('hidden');
-    if (searchInp) searchInp.placeholder = 'Cari nama Kabupaten/Kota...';
 
     const kRows = kabRowsForSelectedKp();
     const kabMap = {};
@@ -511,10 +494,7 @@
       totRp += v;
     });
 
-    const kabList = Object.values(kabMap)
-      .sort((a, b) => (b.plg - a.plg) || (b.rp - a.rp))
-      .map((item, idx) => ({ ...item, rank: idx + 1 }));
-
+    const kabList = Object.values(kabMap).sort((a, b) => (b.plg - a.plg) || (b.rp - a.rp));
     if (S.kab !== 'ALL' && !kabList.some((x) => normalizeKabKey(x.kab) === normalizeKabKey(S.kab))) {
       S.kab = 'ALL';
     }
@@ -532,30 +512,20 @@
       return null;
     }
 
-    const visibleKab = q
-      ? kabList.filter((x) => x.kab.toLowerCase().includes(q))
-      : kabList;
-
-    rankEl.innerHTML = visibleKab.map((x) => {
-      const normKey = normalizeKabKey(x.kab);
-      const on = S.kab !== 'ALL' && normKey === normalizeKabKey(S.kab);
-      const isLoading = S.loadingKab && normKey === S.loadingKab;
-      const statusText = isLoading ? 'Memuat batas wilayah...' : (on ? 'Sedang ditampilkan' : 'Nominal tertunggak');
+    rankEl.innerHTML = kabList.map((x, i) => {
+      const on = S.kab !== 'ALL' && normalizeKabKey(x.kab) === normalizeKabKey(S.kab);
       return `<li>
         <button type="button" data-kab-pick="${esc(x.kab)}" aria-pressed="${on}"
           class="group w-full text-left p-2.5 rounded-xl border transition-all shadow-2xs ${on ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-200' : 'bg-white border-slate-100 hover:border-rose-300 hover:bg-rose-50/50'}">
           <div class="flex items-start gap-2">
-            <span class="w-5 text-center text-[11px] font-bold ${on ? 'text-rose-600' : 'text-slate-400'} mt-0.5">${x.rank}</span>
+            <span class="w-5 text-center text-[11px] font-bold ${on ? 'text-rose-600' : 'text-slate-400'} mt-0.5">${i + 1}</span>
             <div class="min-w-0 flex-1">
               <div class="flex items-center justify-between gap-2">
-                <span class="text-xs font-bold ${on ? 'text-rose-700' : 'text-slate-700 group-hover:text-rose-700'} truncate flex items-center gap-1.5" title="${esc(x.kab)}">
-                  <span class="truncate">${esc(x.kab)}</span>
-                  ${isLoading ? '<span class="w-3 h-3 border-2 border-rose-500 border-t-transparent rounded-full animate-spin inline-block flex-shrink-0"></span>' : ''}
-                </span>
+                <span class="text-xs font-bold ${on ? 'text-rose-700' : 'text-slate-700 group-hover:text-rose-700'} truncate" title="${esc(x.kab)}">${esc(x.kab)}</span>
                 <span class="text-xs font-bold text-rose-600 whitespace-nowrap">${num(x.plg)} plg</span>
               </div>
               <div class="flex items-center justify-between gap-2 mt-0.5">
-                <span class="text-[11px] ${on ? 'text-rose-500 font-medium' : 'text-slate-400'}">${statusText}</span>
+                <span class="text-[11px] ${on ? 'text-rose-500 font-medium' : 'text-slate-400'}">${on ? 'Sedang ditampilkan' : 'Nominal tertunggak'}</span>
                 <span class="text-[11px] font-semibold text-slate-700 whitespace-nowrap">${rp(x.rp)}</span>
               </div>
             </div>
@@ -566,7 +536,7 @@
           </div>
         </button>
       </li>`;
-    }).join('') || '<li class="text-xs text-slate-400 p-2">Tidak ada Kabupaten yang cocok dengan pencarian.</li>';
+    }).join('');
 
     footEl.classList.remove('hidden');
     footEl.innerHTML = `<span>Total (${num(kabList.length)} Kab/Kota)</span><strong class="text-rose-600">${num(totPlg)} plg · ${rp(totRp)}</strong>`;
@@ -744,51 +714,31 @@
     const all = rows(true, true);
     paintKpSelect(all);
     const selectedKabObj = paintRank(all);
-
-    const areaKey = [S.f.region, S.kp, S.kab].join('|');
-    const keepCamera = S.modeOnlySwitch && areaKey === S.lastAreaKey && S.map.getZoom() > 4;
-    S.modeOnlySwitch = false;
-    S.lastAreaKey = areaKey;
-
     S.sig = [S.f.tipe, S.f.periode, S.f.region, S.kp, S.kab, S.mode, S.ver].join('|');
     paintStats(rows(), selectedKabObj); paintAct(); paintSeg(); paintLegend();
 
     let geoInfo = null;
     if (S.kp !== 'ALL' && S.kab !== 'ALL' && S.kab !== '(Tidak Terdeteksi)') {
-      const targetKey = normalizeKabKey(S.kab);
-      if (S.geoCache[targetKey] === undefined) {
-        S.loadingKab = targetKey;
-        paintRank(rows(true, true));
-      }
       geoInfo = await fetchKabGeo(S.kab);
       if (my !== S.token) return;
-      if (S.loadingKab) {
-        S.loadingKab = '';
-        paintRank(rows(true, true));
-      }
       if (geoInfo) {
         S.kabBounds = geoInfo.bounds;
         drawBoundary(geoInfo);
       } else {
         hint('Batas wilayah ' + S.kab + ' tidak ditemukan di peta');
       }
-    } else if (S.loadingKab) {
-      S.loadingKab = '';
-      paintRank(rows(true, true));
     }
 
     if (S.mode === 'ringkasan') {
       drawSummary(geoInfo);
-      if (!keepCamera) {
-        if (geoInfo && geoInfo.bounds) {
-          S.map.flyToBounds(geoInfo.bounds, { padding: [28, 28], maxZoom: 13, duration: 0.65 });
-        } else {
-          fitTo(S.pts, 13);
-        }
+      if (geoInfo && geoInfo.bounds) {
+        S.map.flyToBounds(geoInfo.bounds, { padding: [28, 28], maxZoom: 13, duration: 0.65 });
+      } else {
+        fitTo(S.pts, 13);
       }
     } else {
       await drawPins(my, geoInfo);
-      if (my === S.token && !keepCamera) {
+      if (my === S.token) {
         if (geoInfo && geoInfo.bounds) {
           S.map.flyToBounds(geoInfo.bounds, { padding: [28, 28], maxZoom: 13, duration: 0.65 });
         } else {
@@ -799,23 +749,9 @@
   }
   const later = () => { clearTimeout(S.timer); S.timer = setTimeout(() => render(), 60); };
 
-  function clearSearchInput() {
-    S.search = '';
-    if (!S.root) return;
-    const inp = R('rankSearch');
-    if (inp) inp.value = '';
-    const clr = R('rankSearchClear');
-    if (clr) clr.classList.add('hidden');
-  }
-
-  function setKp(k, mode) { S.kp = k; S.kab = 'ALL'; clearSearchInput(); if (mode) S.mode = mode; render(); }
+  function setKp(k, mode) { S.kp = k; S.kab = 'ALL'; if (mode) S.mode = mode; render(); }
   function setKab(k) { S.kab = k; render(); }
-  function setMode(m) {
-    if (S.mode === m) return;
-    S.mode = m;
-    S.modeOnlySwitch = true;
-    render();
-  }
+  function setMode(m) { S.mode = m; render(); }
 
   function toggleFs(on) {
     S.fs = on == null ? !S.fs : on;
@@ -872,22 +808,6 @@
     if (!g.L) { notice('Leaflet gagal dimuat. Periksa koneksi atau pemblokiran unpkg.com, lalu muat ulang halaman.'); return; }
     initMap(); paintSeg(); paintLegend();
     R('kp').addEventListener('change', (e) => setKp(e.target.value));
-    const searchInp = R('rankSearch');
-    const searchClr = R('rankSearchClear');
-    if (searchInp) {
-      searchInp.addEventListener('input', (e) => {
-        S.search = e.target.value;
-        if (searchClr) searchClr.classList.toggle('hidden', !S.search);
-        paintRank(rows(true, true));
-      });
-    }
-    if (searchClr) {
-      searchClr.addEventListener('click', () => {
-        clearSearchInput();
-        paintRank(rows(true, true));
-        if (searchInp) searchInp.focus();
-      });
-    }
     host.addEventListener('click', (e) => {
       const a = e.target.closest('[data-pm],[data-kp-pick],[data-kab-pick],[data-act],[data-mode]');
       if (!a) return;
@@ -916,7 +836,7 @@
     setData(r) { S.data = r || []; S.ver++; later(); },
     setProgresData(r) { S.progresData = r || []; S.ver++; later(); },
     setFilter(f) { Object.assign(S.f, f || {}); later(); },
-    resetKp() { S.kp = 'ALL'; S.kab = 'ALL'; clearSearchInput(); later(); },
+    resetKp() { S.kp = 'ALL'; S.kab = 'ALL'; later(); },
     clearCache() { S.cache = {}; S.ver++; },
     onShow() { if (S.map) { setTimeout(() => { S.map.invalidateSize(); S.sig = ''; render(); }, 120); } }
   };
@@ -935,10 +855,10 @@
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        #dashboardWrapper { opacity: 1; transform: translateY(0); transition: opacity 0.25s ease-in-out, transform 0.25s ease-in-out; }
-        #dashboardWrapper.is-animating { opacity: 0; transform: translateY(8px); }
-        @keyframes rowFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-row { animation: rowFadeIn 0.35s ease forwards; opacity: 0; }
+        #dashboardWrapper { opacity: 1; transform: translateY(0); transition: opacity 0.35s ease-in-out, transform 0.35s ease-in-out; }
+        #dashboardWrapper.is-animating { opacity: 0; transform: translateY(12px); }
+        @keyframes rowFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-row { animation: rowFadeIn 0.5s ease forwards; opacity: 0; }
         @media (prefers-reduced-motion: reduce) {
             #dashboardWrapper { transition: none; }
             .animate-row { animation: none; opacity: 1; }
@@ -1008,7 +928,7 @@
 
         <!-- WADAH 1: SLA 3 -->
         <div id="slaContainer" class="space-y-4 sm:space-y-6">
-            <div class="sticky top-2 sm:top-3 z-30 bg-white/95 backdrop-blur-md p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200/80 space-y-3">
+            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
                 <div class="flex items-center justify-between">
                     <div>
                         <h3 class="text-sm font-bold text-slate-700">Filter Pencapaian</h3>
@@ -1079,15 +999,10 @@
             <div class="flex flex-col gap-4 sm:gap-6 pb-8">
                 <!-- KARTU ATAS: Top Kinerja Region -->
                 <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
-                    <div class="flex items-center justify-between gap-2 mb-4">
-                        <h3 id="regionChartTitle" class="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55-.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
-                            Top Kinerja Region
-                        </h3>
-                        <button type="button" id="btnResetRegionChart" onclick="clearSlaRegionFilter()" class="hidden px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors">
-                            ← Semua Region
-                        </button>
-                    </div>
+                    <h3 id="regionChartTitle" class="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55-.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
+                        Top Kinerja Region
+                    </h3>
                     <div class="overflow-y-auto table-scroll" style="max-height: 420px;">
                         <div id="regionChartHost" style="position: relative; min-width: 450px;"><canvas id="regionChart"></canvas></div>
                     </div>
@@ -1123,13 +1038,19 @@
 
         <!-- WADAH 2: PROGRES TAGIHAN -->
         <div id="progresContainer" class="hidden space-y-4 sm:space-y-6 pb-8">
-            <!-- STICKY BILLING TYPE & FILTER BAR -->
-            <div class="sticky top-2 sm:top-3 z-30 bg-white/95 backdrop-blur-md p-3.5 sm:p-4 rounded-2xl shadow-sm border border-slate-200/80 space-y-3">
-                <div class="flex flex-wrap items-center justify-between gap-2.5">
-                    <div class="bg-slate-100 p-1 rounded-xl inline-flex overflow-x-auto text-xs sm:text-sm font-semibold border border-slate-200 hide-scrollbar">
-                        <button onclick="setBillingType('prepaid')" id="btnPrepaid" class="px-4 py-2 rounded-lg bg-white shadow-sm text-rose-600 transition-all flex-shrink-0 text-center whitespace-nowrap">Prabayar</button>
-                        <button onclick="setBillingType('postpaid')" id="btnPostpaid" class="px-4 py-2 rounded-lg text-slate-500 hover:text-slate-700 transition-all flex-shrink-0 text-center whitespace-nowrap">Pascabayar</button>
-                        <button onclick="setBillingType('all')" id="btnAllType" class="px-4 py-2 rounded-lg text-slate-500 hover:text-slate-700 transition-all flex-shrink-0 text-center whitespace-nowrap">Semua Tagihan</button>
+            <div class="flex flex-col items-center justify-center">
+                <div class="bg-slate-100 p-1.5 rounded-xl inline-flex w-full sm:w-auto overflow-x-auto text-sm font-semibold shadow-inner border border-slate-200 hide-scrollbar">
+                    <button onclick="setBillingType('prepaid')" id="btnPrepaid" class="px-5 py-2.5 rounded-lg bg-white shadow-sm text-rose-600 transition-all flex-shrink-0 sm:flex-none text-center whitespace-nowrap">Prabayar</button>
+                    <button onclick="setBillingType('postpaid')" id="btnPostpaid" class="px-5 py-2.5 rounded-lg text-slate-500 hover:text-slate-700 transition-all flex-shrink-0 sm:flex-none text-center whitespace-nowrap">Pascabayar</button>
+                    <button onclick="setBillingType('all')" id="btnAllType" class="px-5 py-2.5 rounded-lg text-slate-500 hover:text-slate-700 transition-all flex-shrink-0 sm:flex-none text-center whitespace-nowrap">Semua Tagihan</button>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4 mt-2">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-700">Filter Pencapaian</h3>
+                        <p class="text-[11px] text-slate-400">Pilih periode, region, & rentang tgl spesifik</p>
                     </div>
                     <button onclick="resetProgresFilter()" class="px-3 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 text-xs font-semibold rounded-xl hover:bg-rose-100 transition-colors shadow-sm flex items-center gap-1.5">
                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
@@ -1138,24 +1059,24 @@
                         Reset Filter
                     </button>
                 </div>
-                <div class="flex flex-wrap items-center gap-2.5 pt-2.5 border-t border-slate-100">
-                    <select id="filterPeriode" onchange="onPeriodChange()" class="px-3.5 py-2 text-xs sm:text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-rose-500 bg-slate-50 font-semibold text-slate-700">
+                <div class="flex flex-wrap items-center gap-2.5 pt-2 border-t border-slate-100">
+                    <select id="filterPeriode" onchange="onPeriodChange()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-rose-500 bg-slate-50 font-semibold text-slate-700">
                         <option value="ALL">Semua Periode</option>
                     </select>
-                    <select id="progFilterRegion" onchange="applyProgresFilter()" class="px-3.5 py-2 text-xs sm:text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-rose-500 bg-slate-50 font-semibold text-slate-700">
+                    <select id="progFilterRegion" onchange="applyProgresFilter()" class="px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-rose-500 bg-slate-50 font-semibold text-slate-700">
                         <option value="ALL">Semua Region</option>
                     </select>
-                    <div class="flex items-center gap-2 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-sm focus-within:border-rose-500 focus-within:ring-1 focus-within:ring-rose-500 transition-all">
+                    <div class="flex items-center gap-2 bg-white border border-slate-200 px-3.5 py-1.5 rounded-xl shadow-sm focus-within:border-rose-500 focus-within:ring-1 focus-within:ring-rose-500 transition-all">
                         <span class="text-xs font-semibold text-slate-500 whitespace-nowrap">📅 Tgl Lunas:</span>
-                        <input type="date" id="progStartDate" onclick="try{this.showPicker();}catch(e){}" onchange="applyProgresFilter()" class="text-xs sm:text-sm bg-transparent border-none focus:outline-none focus:ring-0 text-slate-700 cursor-pointer font-medium w-[105px] sm:w-[115px]">
+                        <input type="date" id="progStartDate" onclick="try{this.showPicker();}catch(e){}" onchange="applyProgresFilter()" class="text-sm bg-transparent border-none focus:outline-none focus:ring-0 text-slate-700 cursor-pointer font-medium w-[110px] sm:w-[120px]">
                         <span class="text-slate-300">|</span>
-                        <input type="date" id="progEndDate" onclick="try{this.showPicker();}catch(e){}" onchange="applyProgresFilter()" class="text-xs sm:text-sm bg-transparent border-none focus:outline-none focus:ring-0 text-slate-700 cursor-pointer font-medium w-[105px] sm:w-[115px]">
+                        <input type="date" id="progEndDate" onclick="try{this.showPicker();}catch(e){}" onchange="applyProgresFilter()" class="text-sm bg-transparent border-none focus:outline-none focus:ring-0 text-slate-700 cursor-pointer font-medium w-[110px] sm:w-[120px]">
                     </div>
                 </div>
             </div>
 
             <!-- LAYOUT 3 KARTU KPI -->
-            <div id="progresKpiCards" class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-stretch">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-stretch">
                 <!-- Kartu Biru -->
                 <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-blue-500 border-t border-r border-b border-slate-100 flex flex-col justify-center h-full">
                     <p id="titleTarget" class="text-xs font-semibold uppercase text-slate-400 mb-1">Target Tagihan (Tgl 25)</p>
@@ -1241,7 +1162,7 @@
                     </div>
                 </div>
                 <div class="w-full bg-slate-100 rounded-full h-5 overflow-hidden border border-slate-200">
-                    <div id="progBarFill" class="bg-rose-500 h-5 rounded-full transition-all duration-700 ease-out" style="width: 0%"></div>
+                    <div id="progBarFill" class="bg-rose-500 h-5 rounded-full transition-all duration-1000 ease-out" style="width: 0%"></div>
                 </div>
             </div>
 
@@ -1288,13 +1209,10 @@
 
             <!-- LEADERBOARD REGION -->
             <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
-                    <h3 class="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55-.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
-                        Leaderboard Region Tertinggi
-                    </h3>
-                    <span class="text-[11px] text-slate-400">Klik baris region untuk filter cepat</span>
-                </div>
+                <h3 class="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55-.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>
+                    Leaderboard Region Tertinggi
+                </h3>
                 <div class="overflow-x-auto table-scroll">
                     <table class="w-full text-left border-collapse table-fixed min-w-[500px]">
                         <thead>
@@ -1390,11 +1308,11 @@
             const obj = document.getElementById(id);
             if (!obj) return;
             endValue = Math.round(Number(endValue) || 0);
-            const token = (obj._animToken = (obj._animToken || 0) + 1);
+            const token = (obj._animToken = (obj._animToken = (obj._animToken || 0) + 1));
             const suffix = customTextAfter ? " " + customTextAfter : "";
             const fmt = (n) => (isCurrency ? formatRupiah(n) : n.toLocaleString('id-ID')) + suffix;
             let startTimestamp = null;
-            const duration = 450;
+            const duration = 1200;
             const step = (timestamp) => {
                 if (obj._animToken !== token) return;
                 if (!startTimestamp) startTimestamp = timestamp;
@@ -1523,9 +1441,9 @@
                 try {
                     actionCallback();
                 } finally {
-                    setTimeout(() => { wrapper.classList.remove('is-animating'); }, 40);
+                    setTimeout(() => { wrapper.classList.remove('is-animating'); }, 50);
                 }
-            }, 220);
+            }, 350);
         }
 
         /* ==========================================================
@@ -1604,12 +1522,7 @@
         }
 
         function applyFilter() {
-            applyFilterWithoutAnimation();
-        }
-
-        function clearSlaRegionFilter() {
-            document.getElementById('filterRegion').value = 'ALL';
-            applyFilterWithoutAnimation();
+            triggerActionAnimation(() => { applyFilterWithoutAnimation(); });
         }
 
         function applyFilterWithoutAnimation() {
@@ -1712,14 +1625,10 @@
             document.getElementById('regionChartHost').style.height = Math.max(320, sorted.length * 30) + 'px';
 
             const titleEl = document.getElementById('regionChartTitle');
-            const resetRegBtn = document.getElementById('btnResetRegionChart');
             const svgTrophy = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-amber-500"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path><path d="M14 14.66V17c0 .55-.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path></svg>`;
             if (titleEl) {
-                titleEl.innerHTML = isAllRegion
-                    ? `${svgTrophy} Top Kinerja Region <span class="text-[11px] font-normal text-slate-400">(Klik batang untuk filter)</span>`
-                    : `${svgTrophy} Top Kinerja KP - Region ${escapeHtml(selectedRegion)}`;
+                titleEl.innerHTML = isAllRegion ? `${svgTrophy} Top Kinerja Region` : `${svgTrophy} Top Kinerja KP - Region ${escapeHtml(selectedRegion)}`;
             }
-            if (resetRegBtn) resetRegBtn.classList.toggle('hidden', isAllRegion);
 
             const colors = sorted.map(() => isAllRegion ? '#6366f1' : '#10b981');
 
@@ -1733,20 +1642,6 @@
                     indexAxis: 'y',
                     maintainAspectRatio: false,
                     interaction: { mode: 'y', intersect: false },
-                    onHover: (evt, elements) => {
-                        if (evt && evt.native && evt.native.target) {
-                            evt.native.target.style.cursor = (isAllRegion && elements.length) ? 'pointer' : 'default';
-                        }
-                    },
-                    onClick: (evt, elements) => {
-                        if (!isAllRegion || !elements || !elements.length) return;
-                        const idx = elements[0].index;
-                        const targetReg = sorted[idx] ? sorted[idx][0] : '';
-                        if (targetReg && targetReg !== '-') {
-                            document.getElementById('filterRegion').value = targetReg;
-                            applyFilterWithoutAnimation();
-                        }
-                    },
                     plugins: { 
                         legend: { display: false }, 
                         tooltip: { callbacks: { label: (ctx) => ' ' + formatRupiah(ctx.parsed.x) } } 
@@ -1898,7 +1793,7 @@
 
                     const getCellBg = (colName) => activeSort === colName ? 'bg-indigo-50/20' : '';
 
-                    return `<tr class="animate-row hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0" style="animation-delay: ${Math.min(index, 20) * 20}ms;">
+                    return `<tr class="animate-row hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0" style="animation-delay: ${Math.min(index, 20) * 30}ms;">
                         <td class="py-2 px-3 w-3/12">
                             <div class="flex items-start space-x-1 sm:space-x-2">
                                 <span class="flex-shrink-0 mt-0.5">${medal}</span>
@@ -1923,7 +1818,7 @@
                     const badgeClass = pct >= 100 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700";
                     const getCellBg = (colName) => activeSort === colName ? 'bg-indigo-50/20' : '';
 
-                    return `<tr class="animate-row hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0" style="animation-delay: ${Math.min(index, 20) * 20}ms;">
+                    return `<tr class="animate-row hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0" style="animation-delay: ${Math.min(index, 20) * 30}ms;">
                         <td class="py-2 px-3 w-5/12">
                             <div class="flex items-start space-x-2 sm:space-x-3">
                                 <span class="flex-shrink-0 mt-0.5">${medal}</span>
@@ -1979,13 +1874,13 @@
 
             ProgresMap.mount('#progresMapMount', { webAppUrl: WEB_APP_URL });
             ProgresMap.setProgresData(allData.progres);
-            setBillingType('prepaid');
+            setBillingType('prepaid', false);
         }
 
-        function setBillingType(type) {
+        function setBillingType(type, animate = true) {
             currentBillingType = type;
-            const actClass = "px-4 py-2 rounded-lg bg-white shadow-sm text-rose-600 transition-all flex-shrink-0 text-center whitespace-nowrap";
-            const inactClass = "px-4 py-2 rounded-lg text-slate-500 hover:text-slate-700 transition-all flex-shrink-0 text-center whitespace-nowrap";
+            const actClass = "px-5 py-2.5 rounded-lg bg-white shadow-sm text-rose-600 transition-all flex-shrink-0 sm:flex-none text-center whitespace-nowrap";
+            const inactClass = "px-5 py-2.5 rounded-lg text-slate-500 hover:text-slate-700 transition-all flex-shrink-0 sm:flex-none text-center whitespace-nowrap";
 
             document.getElementById('btnPrepaid').className = type === 'prepaid' ? actClass : inactClass;
             document.getElementById('btnPostpaid').className = type === 'postpaid' ? actClass.replace('text-rose-600', 'text-indigo-600') : inactClass;
@@ -2003,7 +1898,8 @@
             document.getElementById('progStartDate').value = filterState[type].startDate;
             document.getElementById('progEndDate').value = filterState[type].endDate;
 
-            applyProgresFilter();
+            if (animate) triggerActionAnimation(() => { applyProgresFilter(); });
+            else applyProgresFilter();
         }
 
         function updateDropdownsForBillingType() {
@@ -2019,19 +1915,6 @@
         function onPeriodChange() {
             filterState[currentBillingType].periode = document.getElementById('filterPeriode').value;
             applyProgresFilter();
-        }
-
-        function selectProgresRegion(reg) {
-            const sel = document.getElementById('progFilterRegion');
-            if (!sel) return;
-            const isSame = String(sel.value).trim().toUpperCase() === String(reg).trim().toUpperCase();
-            sel.value = isSame ? 'ALL' : reg;
-            applyProgresFilter();
-            const targetEl = document.getElementById('progresKpiCards');
-            if (targetEl) {
-                const y = targetEl.getBoundingClientRect().top + window.scrollY - 135;
-                window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
-            }
         }
 
         function resetProgresFilter() {
@@ -2143,7 +2026,7 @@
             
             document.getElementById('progBarFill').style.width = Math.min(pctCapaian, 100).toFixed(1) + "%";
             const barColor = pctCapaian >= 100 ? 'bg-emerald-500' : 'bg-rose-500';
-            document.getElementById('progBarFill').className = `h-5 rounded-full transition-all duration-700 ease-out ${barColor}`;
+            document.getElementById('progBarFill').className = `h-5 rounded-full transition-all duration-1000 ease-out ${barColor}`;
             const textColor = pctCapaian >= 100 ? 'text-emerald-600' : 'text-rose-600';
             document.getElementById('progBarText').innerText = pctCapaian.toFixed(1) + "%";
             document.getElementById('progBarText').className = `text-2xl font-black ${textColor}`;
@@ -2223,7 +2106,7 @@
                 momSummaryCard.classList.add('hidden');
             }
 
-            // Leaderboard Region (Klik baris untuk filter cepat)
+            // Leaderboard Region
             const regionStats = {};
             boardBaseData.forEach(row => {
                 const reg = String(row['Region'] || '').trim().toUpperCase();
@@ -2252,19 +2135,9 @@
                               `<span class="text-slate-400 font-semibold w-5 inline-block text-center text-[12px]">${index + 1}</span>`;
                 
                 const badgeClass = row.pct >= 100 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700";
-                const isSelected = selectedRegion !== 'ALL' && String(selectedRegion).trim().toUpperCase() === row.region;
-                const rowClass = isSelected
-                    ? "animate-row cursor-pointer bg-rose-50/80 hover:bg-rose-100/70 transition-colors border-b border-rose-200 last:border-0"
-                    : "animate-row cursor-pointer hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0";
 
-                tbodyHtml += `<tr onclick="selectProgresRegion('${escapeHtml(row.region)}')" class="${rowClass}" style="animation-delay: ${Math.min(index, 20) * 20}ms;" title="Klik untuk filter region ${escapeHtml(row.region)}">
-                    <td class="py-2.5 px-3 w-4/12">
-                        <div class="flex items-center space-x-2 sm:space-x-3">
-                            <span class="flex-shrink-0">${medal}</span>
-                            <div class="font-bold ${isSelected ? 'text-rose-700' : 'text-slate-700'} leading-tight text-[11px] sm:text-sm">${escapeHtml(row.region)}</div>
-                            ${isSelected ? '<span class="px-1.5 py-0.5 rounded bg-rose-500 text-white text-[10px] font-bold">Aktif</span>' : ''}
-                        </div>
-                    </td>
+                tbodyHtml += `<tr class="animate-row hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0" style="animation-delay: ${Math.min(index, 20) * 30}ms;">
+                    <td class="py-2.5 px-3 w-4/12"><div class="flex items-start space-x-2 sm:space-x-3"><span class="flex-shrink-0 mt-0.5">${medal}</span><div class="font-bold text-slate-700 leading-tight text-[11px] sm:text-sm pt-0.5">${escapeHtml(row.region)}</div></div></td>
                     <td class="py-2.5 px-3 w-3/12 text-center align-middle whitespace-nowrap"><div class="text-[11px] sm:text-sm font-semibold text-slate-700">${row.lunasPlg.toLocaleString('id-ID')}</div><div class="text-[11px] text-slate-400 font-medium mt-0.5">dari ${row.targetPlg.toLocaleString('id-ID')}</div></td>
                     <td class="py-2.5 px-3 w-3/12 text-center align-middle whitespace-nowrap"><div class="text-[11px] sm:text-sm font-semibold text-slate-700">${formatRupiah(row.lunasRp)}</div><div class="text-[11px] text-slate-400 font-medium mt-0.5">dari ${formatRupiah(row.targetRp)}</div></td>
                     <td class="py-2.5 px-3 w-2/12 text-right align-middle whitespace-nowrap"><div class="inline-block px-2 py-1 rounded-md text-xs sm:text-sm font-bold shadow-sm ${badgeClass}">${row.pct.toFixed(1)}%</div></td>
