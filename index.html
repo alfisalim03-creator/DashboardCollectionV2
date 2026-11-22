@@ -682,7 +682,7 @@
                                     </svg>
                                     Batal Deaktivasi:
                                 </span>
-                                <span id="detDeaktif" class="text-[11px] font-bold text-slate-600">0 Plg</span>
+                                <span id="detDeaktif" class="text-xs font-bold text-slate-600">0 Plg</span>
                             </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-[11px] font-medium text-slate-500 flex items-center gap-1.5">
@@ -691,7 +691,7 @@
                                     </svg>
                                     Batal Lainnya:
                                 </span>
-                                <span id="detLain" class="text-[11px] font-bold text-slate-400">0 Plg</span>
+                                <span id="detLain" class="text-xs font-bold text-slate-400">0 Plg</span>
                             </div>
                             <div id="rowLuar" class="hidden">
                                 <div class="flex justify-between items-center">
@@ -701,7 +701,7 @@
                                         </svg>
                                         Lunas di Luar Filter Tgl:
                                     </span>
-                                    <span id="detLuar" class="text-[11px] font-bold text-slate-600">0 Plg</span>
+                                    <span id="detLuar" class="text-xs font-bold text-slate-600">0 Plg</span>
                                 </div>
                             </div>
                         </div>
@@ -840,6 +840,11 @@
             return String(v == null ? '' : v)
                 .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        function normText(v, fallback) {
+            const s = String(v == null ? '' : v).trim();
+            return s || fallback;
         }
 
         function parseYMD(str) {
@@ -1007,8 +1012,11 @@
             const wrapper = document.getElementById('dashboardWrapper');
             wrapper.classList.add('is-animating');
             setTimeout(() => {
-                actionCallback();
-                setTimeout(() => { wrapper.classList.remove('is-animating'); }, 50);
+                try {
+                    actionCallback();
+                } finally {
+                    setTimeout(() => { wrapper.classList.remove('is-animating'); }, 50);
+                }
             }, 350);
         }
 
@@ -1562,7 +1570,7 @@
                 selectedKp = 'ALL';
                 filterState[currentBillingType].kp = 'ALL';
             } else if (selectedKp !== 'ALL') {
-                const kpExists = cardBaseData.some(r => String(r['KP'] || '(Kosong)').trim().toUpperCase() === selectedKp.toUpperCase());
+                const kpExists = cardBaseData.some(r => normText(r['KP'], '(Kosong)').toUpperCase() === selectedKp.toUpperCase());
                 if (!kpExists) {
                     selectedKp = 'ALL';
                     filterState[currentBillingType].kp = 'ALL';
@@ -1579,14 +1587,14 @@
             sourceRows.forEach(row => {
                 let key = '';
                 if (level === 'region') {
-                    key = String(row['Region'] || '').trim().toUpperCase();
+                    key = normText(row['Region'], '').toUpperCase();
                     if (!key) return;
                 } else if (level === 'kp') {
-                    key = String(row['KP'] || '(Kosong)').trim() || '(Kosong)';
+                    key = normText(row['KP'], '(Kosong)');
                 } else {
-                    const rowKp = String(row['KP'] || '(Kosong)').trim();
+                    const rowKp = normText(row['KP'], '(Kosong)');
                     if (rowKp.toUpperCase() !== selectedKp.toUpperCase()) return;
-                    key = String(row['Kabupaten'] || row['kabupaten'] || '(Tidak Terdeteksi)').trim() || '(Tidak Terdeteksi)';
+                    key = normText(row['Kabupaten'] ?? row['kabupaten'], '(Tidak Terdeteksi)');
                 }
 
                 if (!statsMap[key]) statsMap[key] = { label: key, targetPlg: 0, targetRp: 0, lunasPlg: 0, lunasRp: 0 };
@@ -1604,7 +1612,6 @@
                 .map(s => ({ ...s, pct: s.targetPlg > 0 ? (s.lunasPlg / s.targetPlg) * 100 : 0 }))
                 .sort((a, b) => (b.pct - a.pct) || (b.lunasPlg - a.lunasPlg));
 
-            // Header, subjudul, dan navigasi breadcrumb
             if (level === 'region') {
                 titleEl.innerHTML = `${trophySvg} Leaderboard Region Tertinggi`;
                 subEl.innerText = 'Klik baris Region untuk melihat rincian per KP';
@@ -1714,7 +1721,7 @@
             filterState[currentBillingType] = {
                 periode: selectedPeriod,
                 region: selectedRegion,
-                kp: selectedKp,
+                kp: currentKp,
                 startDate: startStr,
                 endDate: endStr
             };
