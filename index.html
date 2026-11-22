@@ -21,9 +21,9 @@
   'use strict';
   const LAT = [-11.2, 6.2], LNG = [94.8, 141.2];
   const TIPE = { prepaid: 'Prabayar', postpaid: 'Pascabayar', all: 'Semua tagihan' };
-  const S = { root: null, map: null, layer: null, box: null, cfg: {}, data: [], progresData: [], ver: 0,
+  const S = { root: null, map: null, layer: null, boundaryLayer: null, box: null, cfg: {}, data: [], progresData: [], ver: 0,
     f: { tipe: 'prepaid', periode: 'ALL', region: 'ALL' }, kp: 'ALL', kab: 'ALL', mode: 'ringkasan',
-    cache: {}, geoCache: {}, token: 0, abort: null, sig: '', fs: false, pts: [], timer: 0, hintT: 0, touch: false };
+    cache: {}, geoCache: {}, kabBounds: null, token: 0, abort: null, sig: '', fs: false, pts: [], timer: 0, hintT: 0, touch: false };
 
   const R = (n) => S.root.querySelector('[data-r="' + n + '"]');
   const esc = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -35,14 +35,30 @@
   const col = (n) => (n > 100 ? '#e11d48' : n >= 25 ? '#f97316' : '#fbbf24');
   const vis = () => S.root.getClientRects().length > 0;
 
+  function cleanKabLabel(raw) {
+    let s = String(raw == null ? '' : raw).trim();
+    if (!s) return '(Tidak Terdeteksi)';
+    s = s.replace(/^(Kota|Kabupaten|Kab\.?)\s+\1\s+/i, '$1 ');
+    return s;
+  }
+
+  function normalizeKabKey(raw) {
+    return cleanKabLabel(raw)
+      .toUpperCase()
+      .replace(/^KABUPATEN\s+/, 'KAB ')
+      .replace(/^KAB\.?\s+/, 'KAB ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   function getKabName(r) {
     if (!r) return '(Tidak Terdeteksi)';
-    if (r.Kabupaten != null && String(r.Kabupaten).trim() !== '') return String(r.Kabupaten).trim();
+    if (r.Kabupaten != null && String(r.Kabupaten).trim() !== '') return cleanKabLabel(r.Kabupaten);
     for (const k of Object.keys(r)) {
       const kl = k.trim().toLowerCase();
       if (kl === 'kabupaten' || kl === 'kabupaten_kota' || kl === 'kota') {
         const v = String(r[k] == null ? '' : r[k]).trim();
-        if (v) return v;
+        if (v) return cleanKabLabel(v);
       }
     }
     return '(Tidak Terdeteksi)';
@@ -60,15 +76,18 @@
   .pm-box.pm-fs{position:fixed;inset:0;z-index:3000;border-radius:0;border:0}
   .pm-box.pm-fs .pm-map{height:100dvh}
   .pm-ctl a{display:flex;align-items:center;justify-content:center;cursor:pointer}
-  .pm-pin{width:14px;height:14px;background:#e11d48;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.45)}
+  .pm-pin-hit{width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:50%;background:transparent}
+  .pm-pin-dot{width:15px;height:15px;background:#e11d48;border:2.5px solid #fff;border-radius:50%;box-shadow:0 0 0 3px rgba(225,29,72,.22),0 2px 5px rgba(0,0,0,.45);transition:transform .16s ease,box-shadow .16s ease,background-color .16s ease;pointer-events:none}
+  .pm-pin-hit:hover .pm-pin-dot,.pm-pin-hit:focus-visible .pm-pin-dot{transform:scale(1.38);background:#be123c;box-shadow:0 0 0 7px rgba(225,29,72,.28),0 3px 8px rgba(0,0,0,.5)}
+  .pm-pin-marker:hover{z-index:900!important}
   .pm-wrap button:focus-visible,.pm-wrap select:focus-visible{outline:2px solid #f43f5e;outline-offset:2px}
   .pm-hint{transition:opacity .3s}
-  @media (prefers-reduced-motion:reduce){.pm-hint{transition:none}}`;
+  @media (prefers-reduced-motion:reduce){.pm-hint,.pm-pin-dot{transition:none}}`;
 
   const I = {
     pin: '<svg class="w-4 h-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>',
     reset: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg>',
-    fs: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
+    fs: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5-5"/></svg>',
     fsx: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>',
     chev: '<svg class="w-3.5 h-3.5 text-slate-400 group-hover:text-rose-500 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>'
   };
@@ -130,17 +149,207 @@
     </div>
   </section>`;
 
+  /* ---------- geometri & point-in-polygon ---------- */
+  function pointInRing(lng, lat, ring) {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const xi = ring[i][0], yi = ring[i][1];
+      const xj = ring[j][0], yj = ring[j][1];
+      const intersect = ((yi > lat) !== (yj > lat)) &&
+        (lng < (xj - xi) * (lat - yi) / ((yj - yi) || 1e-12) + xi);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  }
+
+  function pointInPolygonCoords(lng, lat, polyCoords) {
+    if (!polyCoords || !polyCoords.length) return false;
+    if (!pointInRing(lng, lat, polyCoords[0])) return false;
+    for (let i = 1; i < polyCoords.length; i++) {
+      if (pointInRing(lng, lat, polyCoords[i])) return false;
+    }
+    return true;
+  }
+
+  function pointInGeoExact(lat, lng, geojson) {
+    if (!geojson) return true;
+    if (geojson.type === 'Polygon') return pointInPolygonCoords(lng, lat, geojson.coordinates);
+    if (geojson.type === 'MultiPolygon') {
+      return geojson.coordinates.some((poly) => pointInPolygonCoords(lng, lat, poly));
+    }
+    return true;
+  }
+
+  function pointInKabGeo(lat, lng, geoInfo) {
+    if (!geoInfo) return true;
+    const pad = 0.0014; // toleransi ~150m untuk pin di jalan perbatasan
+    if (geoInfo.bbox) {
+      const [sLat, nLat, wLng, eLng] = geoInfo.bbox;
+      if (lat < sLat - pad || lat > nLat + pad || lng < wLng - pad || lng > eLng + pad) return false;
+    }
+    if (!geoInfo.geojson) return true;
+    if (pointInGeoExact(lat, lng, geoInfo.geojson)) return true;
+    return pointInGeoExact(lat + pad, lng, geoInfo.geojson) ||
+           pointInGeoExact(lat - pad, lng, geoInfo.geojson) ||
+           pointInGeoExact(lat, lng + pad, geoInfo.geojson) ||
+           pointInGeoExact(lat, lng - pad, geoInfo.geojson);
+  }
+
+  function simplifyRing(ring, minStep) {
+    if (!Array.isArray(ring) || ring.length <= 40) return ring;
+    const out = [ring[0]];
+    let last = ring[0];
+    for (let i = 1; i < ring.length - 1; i++) {
+      const pt = ring[i];
+      if (Math.abs(pt[0] - last[0]) >= minStep || Math.abs(pt[1] - last[1]) >= minStep) {
+        out.push(pt);
+        last = pt;
+      }
+    }
+    out.push(ring[ring.length - 1]);
+    return out;
+  }
+
+  function simplifyGeoJSON(geo) {
+    if (!geo) return null;
+    const step = 0.00035;
+    if (geo.type === 'Polygon') {
+      return { type: 'Polygon', coordinates: geo.coordinates.map((r) => simplifyRing(r, step)) };
+    }
+    if (geo.type === 'MultiPolygon') {
+      return { type: 'MultiPolygon', coordinates: geo.coordinates.map((p) => p.map((r) => simplifyRing(r, step))) };
+    }
+    return null;
+  }
+
+  /* ---------- geocoding batas kabupaten (GeoJSON + BoundingBox) ---------- */
+  async function fetchKabGeo(kabName) {
+    const clean = cleanKabLabel(kabName);
+    if (!clean || clean === '(Tidak Terdeteksi)') return null;
+    const key = normalizeKabKey(clean);
+    if (S.geoCache[key] !== undefined) return S.geoCache[key];
+
+    try {
+      const saved = sessionStorage.getItem('pm_geo_v2_' + key);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        S.geoCache[key] = parsed;
+        return parsed;
+      }
+    } catch (_) { /* abaikan storage error */ }
+
+    const isKab = /^KAB(\.|\s|UPATEN)/i.test(clean);
+    const isKota = /^KOTA\s+/i.test(clean);
+    const baseName = clean
+      .replace(/^KABUPATEN\s+/i, '')
+      .replace(/^KAB\.?\s+/i, '')
+      .replace(/^KOTA\s+/i, '')
+      .trim();
+
+    const fullQueryName = isKab ? ('Kabupaten ' + baseName) : isKota ? ('Kota ' + baseName) : clean;
+    const queries = [fullQueryName + ', Indonesia'];
+    if (isKab) queries.push(baseName + ' Regency, Indonesia');
+    if (isKota) queries.push(baseName + ' City, Indonesia');
+    if (fullQueryName.toLowerCase() !== clean.toLowerCase()) queries.push(clean + ', Indonesia');
+
+    for (const q of queries) {
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=id&polygon_geojson=1&limit=5&q=${encodeURIComponent(q)}`;
+        const res = await fetch(url);
+        if (!res.ok) continue;
+        const arr = await res.json();
+        if (!arr || !arr.length) continue;
+
+        let best = null, bestScore = -9999;
+        for (const item of arr) {
+          let score = 0;
+          const dn = String(item.display_name || '').toLowerCase();
+          const hasPoly = item.geojson && (item.geojson.type === 'Polygon' || item.geojson.type === 'MultiPolygon');
+          if (hasPoly) score += 100;
+          else if (item.boundingbox && item.boundingbox.length === 4) score += 10;
+
+          if (dn.includes(baseName.toLowerCase())) score += 30;
+          if (isKab) {
+            if (dn.startsWith('kota ') || dn.includes(', kota ' + baseName.toLowerCase())) score -= 90;
+            if (dn.includes('regency') || dn.includes('kabupaten')) score += 40;
+          } else if (isKota) {
+            if (dn.startsWith('kota ') || dn.includes(' city')) score += 45;
+            if (dn.includes('regency') || dn.includes('kabupaten')) score -= 90;
+          }
+          if (item.category === 'boundary' || item.type === 'administrative') score += 20;
+
+          if (score > bestScore) {
+            bestScore = score;
+            best = item;
+          }
+        }
+
+        if (best && best.boundingbox && best.boundingbox.length === 4) {
+          const bb = best.boundingbox.map(Number); // [southLat, northLat, westLng, eastLng]
+          const hasPoly = best.geojson && (best.geojson.type === 'Polygon' || best.geojson.type === 'MultiPolygon');
+          const geoInfo = {
+            bbox: bb,
+            bounds: [[bb[0], bb[2]], [bb[1], bb[3]]],
+            geojson: hasPoly ? simplifyGeoJSON(best.geojson) : null
+          };
+          S.geoCache[key] = geoInfo;
+          try { sessionStorage.setItem('pm_geo_v2_' + key, JSON.stringify(geoInfo)); } catch (_) { /* penuh */ }
+          return geoInfo;
+        }
+      } catch (_) { /* abaikan error jaringan */ }
+    }
+
+    S.geoCache[key] = null;
+    return null;
+  }
+
+  function drawBoundary(geoInfo) {
+    if (!S.boundaryLayer) return;
+    S.boundaryLayer.clearLayers();
+    if (!geoInfo) return;
+
+    if (geoInfo.geojson) {
+      // Halo putih tipis di bawah garis batas agar kontras di peta jalan maupun satelit
+      g.L.geoJSON(geoInfo.geojson, {
+        interactive: false,
+        style: { color: '#ffffff', weight: 5.5, opacity: 0.85, fill: false }
+      }).addTo(S.boundaryLayer);
+
+      // Garis batas administratif tegas warna rose
+      g.L.geoJSON(geoInfo.geojson, {
+        interactive: false,
+        style: {
+          color: '#e11d48',
+          weight: 2.8,
+          opacity: 0.95,
+          dashArray: '7, 5',
+          fillColor: '#fb7185',
+          fillOpacity: 0.08
+        }
+      }).addTo(S.boundaryLayer);
+    } else if (geoInfo.bounds) {
+      g.L.rectangle(geoInfo.bounds, {
+        interactive: false,
+        color: '#e11d48',
+        weight: 2.5,
+        dashArray: '7, 5',
+        fillColor: '#fb7185',
+        fillOpacity: 0.07
+      }).addTo(S.boundaryLayer);
+    }
+  }
+
   /* ---------- data ---------- */
   function rows(skipKp, skipKab) {
     const { tipe, periode, region } = S.f;
-    const filterByKab = !skipKab && S.kp !== 'ALL' && S.kab !== 'ALL' && hasKabColumnInGrid();
+    const filterByKabCol = !skipKab && S.kp !== 'ALL' && S.kab !== 'ALL' && hasKabColumnInGrid();
     return S.data.filter((r) => {
       const t = up(r.Tipe_Layanan);
       if (tipe === 'all' ? (t !== 'PREPAID' && t !== 'POSTPAID') : t !== up(tipe)) return false;
       if (periode !== 'ALL' && String(r.Periode || '').trim() !== String(periode).trim()) return false;
       if (region !== 'ALL' && up(r.Region) !== up(region)) return false;
       if (!skipKp && S.kp !== 'ALL' && up(r.KP) !== up(S.kp)) return false;
-      if (filterByKab && up(getKabName(r)) !== up(S.kab)) return false;
+      if (filterByKabCol && normalizeKabKey(getKabName(r)) !== normalizeKabKey(S.kab)) return false;
       return true;
     });
   }
@@ -156,53 +365,6 @@
       const st = up(r.Status);
       return st === 'BELUM BAYAR' || st === 'BELUM LUNAS';
     });
-  }
-
-  /* ---------- geocoding batas kabupaten ---------- */
-  async function fetchKabBounds(kabName) {
-    const clean = String(kabName || '').trim();
-    if (!clean || clean === '(Tidak Terdeteksi)') return null;
-    const key = up(clean);
-    if (S.geoCache[key] !== undefined) return S.geoCache[key];
-
-    const normalized = clean
-      .replace(/^KAB\.?\s+/i, 'Kabupaten ')
-      .replace(/^KOTA\s+/i, 'Kota ');
-
-    const queries = [normalized + ', Indonesia'];
-    if (normalized !== clean) queries.push(clean + ', Indonesia');
-
-    for (const q of queries) {
-      try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=id&limit=1&q=${encodeURIComponent(q)}`);
-        if (!res.ok) continue;
-        const arr = await res.json();
-        if (arr && arr.length && arr[0].boundingbox && arr[0].boundingbox.length === 4) {
-          const bb = arr[0].boundingbox.map(Number);
-          const bounds = [[bb[0], bb[2]], [bb[1], bb[3]]];
-          S.geoCache[key] = bounds;
-          return bounds;
-        }
-      } catch (_) { /* abaikan error jaringan */ }
-    }
-    S.geoCache[key] = null;
-    return null;
-  }
-
-  async function focusMapToKab(kabName, myToken) {
-    if (!S.map || !kabName || kabName === 'ALL') return;
-    if (kabName === '(Tidak Terdeteksi)') {
-      hint('Koordinat batas wilayah untuk kategori ini tidak tersedia');
-      return;
-    }
-    const bounds = await fetchKabBounds(kabName);
-    if (myToken !== S.token || up(S.kab) !== up(kabName)) return;
-    if (bounds) {
-      S.map.flyToBounds(bounds, { padding: [24, 24], maxZoom: 13, duration: 0.7 });
-      hint('Menampilkan area ' + kabName, 1800);
-    } else {
-      hint('Batas wilayah ' + kabName + ' tidak ditemukan di peta');
-    }
   }
 
   /* ---------- UI helpers ---------- */
@@ -234,9 +396,12 @@
   }
   function paintLegend() {
     const dot = (c, t) => `<span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:${c}"></span>${t}</span>`;
-    R('legend').innerHTML = S.mode === 'ringkasan'
+    const borderLeg = S.kab !== 'ALL'
+      ? '<span class="inline-flex items-center gap-1.5"><span class="w-4 h-0 border-t-2 border-dashed border-rose-600 inline-block"></span>Batas wilayah ' + esc(S.kab) + '</span>'
+      : '';
+    R('legend').innerHTML = (S.mode === 'ringkasan'
       ? dot('#fbbf24', 'Kurang dari 25 pelanggan') + dot('#f97316', '25 sampai 100') + dot('#e11d48', 'Lebih dari 100')
-      : dot('#e11d48', 'Rumah pelanggan tunggakan aktif');
+      : dot('#e11d48', 'Rumah pelanggan tunggakan aktif')) + borderLeg;
   }
   function paintAct() {
     const a = R('act');
@@ -267,7 +432,6 @@
     const rankEl = R('rank');
     const footEl = R('rankFoot');
 
-    // Hitung daftar KP terlebih dahulu agar S.top selalu siap untuk mode pin
     const kpMap = {};
     all.forEach((r) => {
       const k = r.KP || '-';
@@ -278,7 +442,6 @@
     const kpList = Object.values(kpMap).sort((a, b) => b.plg - a.plg);
     S.top = kpList.slice(0, 4).map((x) => x.kp);
 
-    // MODE 1: Belum memilih KP -> Tampilkan ranking KP
     if (S.kp === 'ALL') {
       S.kab = 'ALL';
       titleEl.textContent = 'Area terpadat (KP)';
@@ -311,7 +474,6 @@
       return null;
     }
 
-    // MODE 2: KP Terpilih -> Tampilkan daftar Kabupaten yang dapat diklik
     titleEl.textContent = 'Tunggakan per Kabupaten';
     subEl.textContent = 'KP ' + S.kp + ' · Klik untuk arahkan peta';
     backBtn.classList.remove('hidden');
@@ -322,7 +484,7 @@
 
     kRows.forEach((r) => {
       const rawKab = getKabName(r);
-      const key = up(rawKab);
+      const key = normalizeKabKey(rawKab);
       if (!kabMap[key]) kabMap[key] = { kab: rawKab, plg: 0, rp: 0 };
       const p = Number(r.Jumlah_Pelanggan || 0);
       const v = Number(r.Jumlah_Rupiah || 0);
@@ -333,7 +495,7 @@
     });
 
     const kabList = Object.values(kabMap).sort((a, b) => (b.plg - a.plg) || (b.rp - a.rp));
-    if (S.kab !== 'ALL' && !kabList.some((x) => up(x.kab) === up(S.kab))) {
+    if (S.kab !== 'ALL' && !kabList.some((x) => normalizeKabKey(x.kab) === normalizeKabKey(S.kab))) {
       S.kab = 'ALL';
     }
     const maxKab = kabList.length ? kabList[0].plg || 1 : 1;
@@ -351,7 +513,7 @@
     }
 
     rankEl.innerHTML = kabList.map((x, i) => {
-      const on = S.kab !== 'ALL' && up(x.kab) === up(S.kab);
+      const on = S.kab !== 'ALL' && normalizeKabKey(x.kab) === normalizeKabKey(S.kab);
       return `<li>
         <button type="button" data-kab-pick="${esc(x.kab)}" aria-pressed="${on}"
           class="group w-full text-left p-2.5 rounded-xl border transition-all shadow-2xs ${on ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-200' : 'bg-white border-slate-100 hover:border-rose-300 hover:bg-rose-50/50'}">
@@ -379,7 +541,7 @@
     footEl.classList.remove('hidden');
     footEl.innerHTML = `<span>Total (${num(kabList.length)} Kab/Kota)</span><strong class="text-rose-600">${num(totPlg)} plg · ${rp(totRp)}</strong>`;
 
-    return S.kab !== 'ALL' ? (kabList.find((x) => up(x.kab) === up(S.kab)) || null) : null;
+    return S.kab !== 'ALL' ? (kabList.find((x) => normalizeKabKey(x.kab) === normalizeKabKey(S.kab)) || null) : null;
   }
 
   function paintStats(cur, selectedKabObj) {
@@ -417,11 +579,13 @@
       </div></div>`;
   }
 
-  function drawSummary() {
+  function drawSummary(geoInfo) {
     const grid = {};
+    const useGeoFilter = S.kp !== 'ALL' && S.kab !== 'ALL' && !hasKabColumnInGrid() && geoInfo;
     rows().forEach((r) => {
       const lat = Number(r.lat_grid), lng = Number(r.lng_grid);
       if (!okXY(lat, lng)) return;
+      if (useGeoFilter && !pointInKabGeo(lat, lng, geoInfo)) return;
       const k = lat + ',' + lng;
       const p = grid[k] || (grid[k] = { lat, lng, plg: 0, tgh: 0, rp: 0, kps: {} });
       const n = Number(r.Jumlah_Pelanggan || 0), kp = r.KP || '-';
@@ -432,8 +596,8 @@
     let total = 0;
     pts.forEach((p) => {
       total += p.plg;
-      const c = g.L.circleMarker([p.lat, p.lng], { radius: Math.min(22, Math.max(6, Math.sqrt(p.plg) * 1.5)),
-        fillColor: col(p.plg), color: '#fff', weight: 1.5, fillOpacity: 0.8 });
+      const c = g.L.circleMarker([p.lat, p.lng], { radius: Math.min(22, Math.max(7, Math.sqrt(p.plg) * 1.5)),
+        fillColor: col(p.plg), color: '#fff', weight: 1.5, fillOpacity: 0.85 });
       c.bindTooltip(num(p.plg) + ' pelanggan', { sticky: true });
       c.bindPopup(summaryPopup(p), { maxWidth: 260 });
       S.layer.addLayer(c);
@@ -463,7 +627,7 @@
       </div></div>`;
   }
 
-  async function drawPins(my) {
+  async function drawPins(my, geoInfo) {
     if (S.f.region === 'ALL' && S.kp === 'ALL') {
       empty('Pilih KP untuk melihat pin', 'Pilih dari daftar area terpadat atau dropdown KP agar peta tidak terlalu padat.', S.top, true);
       R('foot').textContent = 'Menunggu pilihan KP'; S.pts = []; return;
@@ -492,22 +656,45 @@
     if (pl.truncated) notice(`Menampilkan ${num(pl.rows.length)} dari ${num(pl.totalMatched)} pelanggan. Pilih KP yang lebih spesifik agar semua titik tampil.`);
 
     let pinList = pl.rows || [];
-    if (S.kab !== 'ALL' && pinList.some((r) => r[8] != null && String(r[8]).trim() !== '')) {
-      pinList = pinList.filter((r) => up(r[8]) === up(S.kab));
+    if (S.kp !== 'ALL' && S.kab !== 'ALL') {
+      const targetKab = normalizeKabKey(S.kab);
+      const hasExplicitKab = pinList.some((r) => r && r[8] != null && String(r[8]).trim() !== '');
+      if (hasExplicitKab) {
+        pinList = pinList.filter((r) => normalizeKabKey(r[8]) === targetKab);
+      } else if (geoInfo) {
+        pinList = pinList.filter((r) => pointInKabGeo(Number(r[4]), Number(r[5]), geoInfo));
+      }
     }
 
-    const cg = g.L.markerClusterGroup ? g.L.markerClusterGroup({ chunkedLoading: true, maxClusterRadius: 45, showCoverageOnHover: false }) : g.L.layerGroup();
-    const icon = g.L.divIcon({ className: '', html: '<div class="pm-pin"></div>', iconSize: [14, 14], iconAnchor: [7, 7] });
+    const cg = g.L.markerClusterGroup
+      ? g.L.markerClusterGroup({
+          chunkedLoading: true,
+          maxClusterRadius: 40,
+          spiderfyOnMaxZoom: true,
+          zoomToBoundsOnClick: true,
+          spiderfyDistanceMultiplier: 1.35,
+          showCoverageOnHover: false
+        })
+      : g.L.layerGroup();
+
+    const icon = g.L.divIcon({
+      className: 'pm-pin-marker',
+      html: '<div class="pm-pin-hit"><span class="pm-pin-dot"></span></div>',
+      iconSize: [34, 34],
+      iconAnchor: [17, 17],
+      popupAnchor: [0, -12]
+    });
+
     const bs = [];
     pinList.forEach((r) => {
       const lat = Number(r[4]), lng = Number(r[5]);
       if (!okXY(lat, lng)) return;
       bs.push([lat, lng]);
-      cg.addLayer(g.L.marker([lat, lng], { icon }).bindPopup(pinPopup(r), { maxWidth: 260 }));
+      cg.addLayer(g.L.marker([lat, lng], { icon, riseOnHover: true }).bindPopup(pinPopup(r), { maxWidth: 260 }));
     });
     S.layer.addLayer(cg); S.pts = bs;
-    R('foot').textContent = `${num(bs.length)} pin ditampilkan`;
-    if (!bs.length) empty('Tidak ada koordinat valid', 'Pelanggan di filter ini belum punya titik koordinat yang bisa ditampilkan.', null, true);
+    R('foot').textContent = `${num(bs.length)} pin ditampilkan` + (S.kab !== 'ALL' ? ` (${S.kab})` : '');
+    if (!bs.length) empty('Tidak ada koordinat valid', 'Pelanggan di filter ini belum punya titik koordinat di dalam batas ' + (S.kab !== 'ALL' ? S.kab : 'area ini') + '.', null, true);
   }
 
   /* ---------- render ---------- */
@@ -519,25 +706,41 @@
     S.sig = sig;
     const my = ++S.token;
     if (S.abort) { S.abort.abort(); S.abort = null; }
-    S.layer.clearLayers(); spin(false); empty(null); notice('');
+    S.layer.clearLayers();
+    if (S.boundaryLayer) S.boundaryLayer.clearLayers();
+    S.kabBounds = null;
+    spin(false); empty(null); notice('');
+
     const all = rows(true, true);
     paintKpSelect(all);
     const selectedKabObj = paintRank(all);
     S.sig = [S.f.tipe, S.f.periode, S.f.region, S.kp, S.kab, S.mode, S.ver].join('|');
     paintStats(rows(), selectedKabObj); paintAct(); paintSeg(); paintLegend();
 
+    let geoInfo = null;
+    if (S.kp !== 'ALL' && S.kab !== 'ALL' && S.kab !== '(Tidak Terdeteksi)') {
+      geoInfo = await fetchKabGeo(S.kab);
+      if (my !== S.token) return;
+      if (geoInfo) {
+        S.kabBounds = geoInfo.bounds;
+        drawBoundary(geoInfo);
+      } else {
+        hint('Batas wilayah ' + S.kab + ' tidak ditemukan di peta');
+      }
+    }
+
     if (S.mode === 'ringkasan') {
-      drawSummary();
-      if (S.kp !== 'ALL' && S.kab !== 'ALL' && !hasKabColumnInGrid()) {
-        await focusMapToKab(S.kab, my);
+      drawSummary(geoInfo);
+      if (geoInfo && geoInfo.bounds) {
+        S.map.flyToBounds(geoInfo.bounds, { padding: [28, 28], maxZoom: 13, duration: 0.65 });
       } else {
         fitTo(S.pts, 13);
       }
     } else {
-      await drawPins(my);
+      await drawPins(my, geoInfo);
       if (my === S.token) {
-        if (S.kp !== 'ALL' && S.kab !== 'ALL') {
-          await focusMapToKab(S.kab, my);
+        if (geoInfo && geoInfo.bounds) {
+          S.map.flyToBounds(geoInfo.bounds, { padding: [28, 28], maxZoom: 13, duration: 0.65 });
         } else {
           fitTo(S.pts, 16);
         }
@@ -575,9 +778,17 @@
       const d = L.DomUtil.create('div', 'leaflet-bar pm-ctl');
       d.innerHTML = `<a href="#" role="button" data-c="reset" title="Tampilkan semua titik" aria-label="Tampilkan semua titik">${I.reset}</a><a href="#" role="button" data-c="fs" title="Layar penuh" aria-label="Layar penuh">${I.fs}</a>`;
       L.DomEvent.disableClickPropagation(d);
-      d.addEventListener('click', (e) => { e.preventDefault(); const c = e.target.closest('[data-c]'); if (c) (c.dataset.c === 'fs' ? toggleFs() : fitTo(S.pts, 13)); });
+      d.addEventListener('click', (e) => {
+        e.preventDefault();
+        const c = e.target.closest('[data-c]');
+        if (!c) return;
+        if (c.dataset.c === 'fs') toggleFs();
+        else if (S.kab !== 'ALL' && S.kabBounds) S.map.fitBounds(S.kabBounds, { padding: [28, 28], maxZoom: 13 });
+        else fitTo(S.pts, 13);
+      });
       return d; } });
     map.addControl(new Ctl());
+    S.boundaryLayer = L.layerGroup().addTo(map);
     S.layer = L.layerGroup().addTo(map);
     map.on('click', () => map.scrollWheelZoom.enable());
     map.on('mouseout', () => map.scrollWheelZoom.disable());
@@ -603,7 +814,7 @@
       if (a.dataset.pm === 'drill') { S.map.closePopup(); setKp(a.dataset.kp, 'detail'); }
       else if (a.dataset.pm === 'copy') copy(a, a.dataset.id);
       else if (a.dataset.kpPick !== undefined) setKp(up(S.kp) === up(a.dataset.kpPick) ? 'ALL' : a.dataset.kpPick);
-      else if (a.dataset.kabPick !== undefined) setKab(up(S.kab) === up(a.dataset.kabPick) ? 'ALL' : a.dataset.kabPick);
+      else if (a.dataset.kabPick !== undefined) setKab(normalizeKabKey(S.kab) === normalizeKabKey(a.dataset.kabPick) ? 'ALL' : a.dataset.kabPick);
       else if (a.dataset.act === 'pins') setMode('detail');
       else if (a.dataset.act === 'clear-kab') setKab('ALL');
       else if (a.dataset.act === 'clear') setKp('ALL');
@@ -1097,7 +1308,7 @@
             const obj = document.getElementById(id);
             if (!obj) return;
             endValue = Math.round(Number(endValue) || 0);
-            const token = (obj._animToken = (obj._animToken || 0) + 1);
+            const token = (obj._animToken = (obj._animToken = (obj._animToken || 0) + 1));
             const suffix = customTextAfter ? " " + customTextAfter : "";
             const fmt = (n) => (isCurrency ? formatRupiah(n) : n.toLocaleString('id-ID')) + suffix;
             let startTimestamp = null;
