@@ -22,8 +22,8 @@
   const LAT = [-11.2, 6.2], LNG = [94.8, 141.2];
   const TIPE = { prepaid: 'Prabayar', postpaid: 'Pascabayar', all: 'Semua tagihan' };
   const S = { root: null, map: null, layer: null, box: null, cfg: {}, data: [], progresData: [], ver: 0,
-    f: { tipe: 'prepaid', periode: 'ALL', region: 'ALL' }, kp: 'ALL', mode: 'ringkasan',
-    cache: {}, token: 0, abort: null, sig: '', fs: false, pts: [], timer: 0, hintT: 0, touch: false };
+    f: { tipe: 'prepaid', periode: 'ALL', region: 'ALL' }, kp: 'ALL', kab: 'ALL', mode: 'ringkasan',
+    cache: {}, geoCache: {}, token: 0, abort: null, sig: '', fs: false, pts: [], timer: 0, hintT: 0, touch: false };
 
   const R = (n) => S.root.querySelector('[data-r="' + n + '"]');
   const esc = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -36,6 +36,7 @@
   const vis = () => S.root.getClientRects().length > 0;
 
   function getKabName(r) {
+    if (!r) return '(Tidak Terdeteksi)';
     if (r.Kabupaten != null && String(r.Kabupaten).trim() !== '') return String(r.Kabupaten).trim();
     for (const k of Object.keys(r)) {
       const kl = k.trim().toLowerCase();
@@ -45,6 +46,10 @@
       }
     }
     return '(Tidak Terdeteksi)';
+  }
+
+  function hasKabColumnInGrid() {
+    return S.data.some((r) => getKabName(r) !== '(Tidak Terdeteksi)');
   }
 
   const CSS = `
@@ -64,7 +69,8 @@
     pin: '<svg class="w-4 h-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>',
     reset: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg>',
     fs: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
-    fsx: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>'
+    fsx: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>',
+    chev: '<svg class="w-3.5 h-3.5 text-slate-400 group-hover:text-rose-500 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>'
   };
 
   const SEG = 'px-3.5 py-2 min-h-[36px] rounded-lg text-xs font-semibold transition-all';
@@ -125,14 +131,16 @@
   </section>`;
 
   /* ---------- data ---------- */
-  function rows(skipKp) {
+  function rows(skipKp, skipKab) {
     const { tipe, periode, region } = S.f;
+    const filterByKab = !skipKab && S.kp !== 'ALL' && S.kab !== 'ALL' && hasKabColumnInGrid();
     return S.data.filter((r) => {
       const t = up(r.Tipe_Layanan);
       if (tipe === 'all' ? (t !== 'PREPAID' && t !== 'POSTPAID') : t !== up(tipe)) return false;
       if (periode !== 'ALL' && String(r.Periode || '').trim() !== String(periode).trim()) return false;
       if (region !== 'ALL' && up(r.Region) !== up(region)) return false;
       if (!skipKp && S.kp !== 'ALL' && up(r.KP) !== up(S.kp)) return false;
+      if (filterByKab && up(getKabName(r)) !== up(S.kab)) return false;
       return true;
     });
   }
@@ -148,6 +156,53 @@
       const st = up(r.Status);
       return st === 'BELUM BAYAR' || st === 'BELUM LUNAS';
     });
+  }
+
+  /* ---------- geocoding batas kabupaten ---------- */
+  async function fetchKabBounds(kabName) {
+    const clean = String(kabName || '').trim();
+    if (!clean || clean === '(Tidak Terdeteksi)') return null;
+    const key = up(clean);
+    if (S.geoCache[key] !== undefined) return S.geoCache[key];
+
+    const normalized = clean
+      .replace(/^KAB\.?\s+/i, 'Kabupaten ')
+      .replace(/^KOTA\s+/i, 'Kota ');
+
+    const queries = [normalized + ', Indonesia'];
+    if (normalized !== clean) queries.push(clean + ', Indonesia');
+
+    for (const q of queries) {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=id&limit=1&q=${encodeURIComponent(q)}`);
+        if (!res.ok) continue;
+        const arr = await res.json();
+        if (arr && arr.length && arr[0].boundingbox && arr[0].boundingbox.length === 4) {
+          const bb = arr[0].boundingbox.map(Number);
+          const bounds = [[bb[0], bb[2]], [bb[1], bb[3]]];
+          S.geoCache[key] = bounds;
+          return bounds;
+        }
+      } catch (_) { /* abaikan error jaringan */ }
+    }
+    S.geoCache[key] = null;
+    return null;
+  }
+
+  async function focusMapToKab(kabName, myToken) {
+    if (!S.map || !kabName || kabName === 'ALL') return;
+    if (kabName === '(Tidak Terdeteksi)') {
+      hint('Koordinat batas wilayah untuk kategori ini tidak tersedia');
+      return;
+    }
+    const bounds = await fetchKabBounds(kabName);
+    if (myToken !== S.token || up(S.kab) !== up(kabName)) return;
+    if (bounds) {
+      S.map.flyToBounds(bounds, { padding: [24, 24], maxZoom: 13, duration: 0.7 });
+      hint('Menampilkan area ' + kabName, 1800);
+    } else {
+      hint('Batas wilayah ' + kabName + ' tidak ditemukan di peta');
+    }
   }
 
   /* ---------- UI helpers ---------- */
@@ -187,13 +242,18 @@
     const a = R('act');
     if (S.kp === 'ALL') { a.classList.add('hidden'); return; }
     a.classList.remove('hidden');
-    a.innerHTML = `<span class="text-xs text-rose-800">KP terpilih: <strong>${esc(S.kp)}</strong></span>
-      <span class="flex gap-2">${S.mode === 'ringkasan' ? '<button type="button" data-act="pins" class="px-3 py-2 rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold">Lihat pin pelanggan</button>' : ''}
+    const kabPart = S.kab !== 'ALL' ? ` <span class="text-rose-400 mx-1">·</span> Kabupaten: <strong>${esc(S.kab)}</strong>` : '';
+    const resetKabBtn = S.kab !== 'ALL'
+      ? '<button type="button" data-act="clear-kab" class="px-3 py-2 rounded-lg bg-white border border-rose-200 text-rose-700 hover:bg-rose-100 text-xs font-semibold">Reset Kab</button>'
+      : '';
+    a.innerHTML = `<span class="text-xs text-rose-800">KP terpilih: <strong>${esc(S.kp)}</strong>${kabPart}</span>
+      <span class="flex flex-wrap gap-2">${S.mode === 'ringkasan' ? '<button type="button" data-act="pins" class="px-3 py-2 rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold">Lihat pin pelanggan</button>' : ''}
+      ${resetKabBtn}
       <button type="button" data-act="clear" class="px-3 py-2 rounded-lg bg-white border border-rose-200 text-rose-700 hover:bg-rose-100 text-xs font-semibold">Hapus pilihan</button></span>`;
   }
   function paintKpSelect(all) {
     const kps = [...new Set(all.map((r) => String(r.KP || '').trim()).filter(Boolean))].sort();
-    if (S.kp !== 'ALL' && !kps.some((k) => up(k) === up(S.kp))) S.kp = 'ALL';
+    if (S.kp !== 'ALL' && !kps.some((k) => up(k) === up(S.kp))) { S.kp = 'ALL'; S.kab = 'ALL'; }
     const sel = R('kp');
     sel.innerHTML = '<option value="ALL">Semua KP</option>' + kps.map((k) => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
     if (S.kp !== 'ALL' && !kps.includes(S.kp)) { const m = kps.find((k) => up(k) === up(S.kp)); if (m) S.kp = m; }
@@ -220,6 +280,7 @@
 
     // MODE 1: Belum memilih KP -> Tampilkan ranking KP
     if (S.kp === 'ALL') {
+      S.kab = 'ALL';
       titleEl.textContent = 'Area terpadat (KP)';
       subEl.textContent = 'Klik KP untuk lihat rincian Kabupaten';
       backBtn.classList.add('hidden');
@@ -227,12 +288,12 @@
 
       const max = kpList.length ? kpList[0].plg || 1 : 1;
       rankEl.innerHTML = kpList.map((x, i) => `<li>
-        <button type="button" data-kp-pick="${esc(x.kp)}" class="w-full text-left p-2.5 rounded-xl bg-white border border-slate-100 hover:border-rose-300 hover:bg-rose-50/50 transition-colors shadow-2xs">
+        <button type="button" data-kp-pick="${esc(x.kp)}" class="group w-full text-left p-2.5 rounded-xl bg-white border border-slate-100 hover:border-rose-300 hover:bg-rose-50/50 transition-colors shadow-2xs">
           <div class="flex items-start gap-2">
             <span class="w-5 text-center text-[11px] font-bold text-slate-400 mt-0.5">${i + 1}</span>
             <div class="min-w-0 flex-1">
               <div class="flex items-center justify-between gap-2">
-                <span class="text-xs font-bold text-slate-700 truncate">${esc(x.kp)}</span>
+                <span class="text-xs font-bold text-slate-700 group-hover:text-rose-700 truncate">${esc(x.kp)}</span>
                 <span class="text-xs font-bold text-rose-600 whitespace-nowrap">${num(x.plg)} plg</span>
               </div>
               <div class="flex items-center justify-between gap-2 mt-0.5">
@@ -240,18 +301,19 @@
                 <span class="text-[11px] font-semibold text-slate-600 whitespace-nowrap">${rp(x.rp)}</span>
               </div>
             </div>
+            <span class="mt-0.5">${I.chev}</span>
           </div>
           <div class="mt-1.5 h-1.5 rounded-full bg-slate-100">
             <div class="h-1.5 rounded-full" style="width:${Math.max(3, (x.plg / max) * 100).toFixed(1)}%;background:${col(x.plg)}"></div>
           </div>
         </button>
       </li>`).join('') || '<li class="text-xs text-slate-400 p-2">Belum ada data untuk filter ini.</li>';
-      return;
+      return null;
     }
 
-    // MODE 2: KP Terpilih -> Tampilkan daftar Kabupaten beserta pelanggan & revenue tertunggak
+    // MODE 2: KP Terpilih -> Tampilkan daftar Kabupaten yang dapat diklik
     titleEl.textContent = 'Tunggakan per Kabupaten';
-    subEl.textContent = 'KP ' + S.kp;
+    subEl.textContent = 'KP ' + S.kp + ' · Klik untuk arahkan peta';
     backBtn.classList.remove('hidden');
 
     const kRows = kabRowsForSelectedKp();
@@ -271,51 +333,68 @@
     });
 
     const kabList = Object.values(kabMap).sort((a, b) => (b.plg - a.plg) || (b.rp - a.rp));
+    if (S.kab !== 'ALL' && !kabList.some((x) => up(x.kab) === up(S.kab))) {
+      S.kab = 'ALL';
+    }
     const maxKab = kabList.length ? kabList[0].plg || 1 : 1;
 
     if (!S.progresData.length) {
       rankEl.innerHTML = '<li class="text-xs text-slate-400 p-2">Data rincian Kabupaten belum tersedia.</li>';
       footEl.classList.add('hidden');
-      return;
+      return null;
     }
 
     if (!kabList.length) {
       rankEl.innerHTML = `<li class="text-xs text-slate-400 p-2">Tidak ada data tunggakan Kabupaten untuk KP <strong>${esc(S.kp)}</strong> pada filter ini.</li>`;
       footEl.classList.add('hidden');
-      return;
+      return null;
     }
 
-    rankEl.innerHTML = kabList.map((x, i) => `
-      <li class="p-2.5 rounded-xl bg-white border border-slate-100 shadow-2xs">
-        <div class="flex items-start gap-2">
-          <span class="w-5 text-center text-[11px] font-bold text-slate-400 mt-0.5">${i + 1}</span>
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-xs font-bold text-slate-700 truncate" title="${esc(x.kab)}">${esc(x.kab)}</span>
-              <span class="text-xs font-bold text-rose-600 whitespace-nowrap">${num(x.plg)} plg</span>
+    rankEl.innerHTML = kabList.map((x, i) => {
+      const on = S.kab !== 'ALL' && up(x.kab) === up(S.kab);
+      return `<li>
+        <button type="button" data-kab-pick="${esc(x.kab)}" aria-pressed="${on}"
+          class="group w-full text-left p-2.5 rounded-xl border transition-all shadow-2xs ${on ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-200' : 'bg-white border-slate-100 hover:border-rose-300 hover:bg-rose-50/50'}">
+          <div class="flex items-start gap-2">
+            <span class="w-5 text-center text-[11px] font-bold ${on ? 'text-rose-600' : 'text-slate-400'} mt-0.5">${i + 1}</span>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-xs font-bold ${on ? 'text-rose-700' : 'text-slate-700 group-hover:text-rose-700'} truncate" title="${esc(x.kab)}">${esc(x.kab)}</span>
+                <span class="text-xs font-bold text-rose-600 whitespace-nowrap">${num(x.plg)} plg</span>
+              </div>
+              <div class="flex items-center justify-between gap-2 mt-0.5">
+                <span class="text-[11px] ${on ? 'text-rose-500 font-medium' : 'text-slate-400'}">${on ? 'Sedang ditampilkan' : 'Nominal tertunggak'}</span>
+                <span class="text-[11px] font-semibold text-slate-700 whitespace-nowrap">${rp(x.rp)}</span>
+              </div>
             </div>
-            <div class="flex items-center justify-between gap-2 mt-0.5">
-              <span class="text-[11px] text-slate-400">Nominal tertunggak</span>
-              <span class="text-[11px] font-semibold text-slate-700 whitespace-nowrap">${rp(x.rp)}</span>
-            </div>
+            <span class="mt-0.5">${I.chev}</span>
           </div>
-        </div>
-        <div class="mt-1.5 h-1.5 rounded-full bg-slate-100">
-          <div class="h-1.5 rounded-full" style="width:${Math.max(3, (x.plg / maxKab) * 100).toFixed(1)}%;background:${col(x.plg)}"></div>
-        </div>
-      </li>
-    `).join('');
+          <div class="mt-1.5 h-1.5 rounded-full bg-slate-100">
+            <div class="h-1.5 rounded-full" style="width:${Math.max(3, (x.plg / maxKab) * 100).toFixed(1)}%;background:${col(x.plg)}"></div>
+          </div>
+        </button>
+      </li>`;
+    }).join('');
 
     footEl.classList.remove('hidden');
     footEl.innerHTML = `<span>Total (${num(kabList.length)} Kab/Kota)</span><strong class="text-rose-600">${num(totPlg)} plg · ${rp(totRp)}</strong>`;
+
+    return S.kab !== 'ALL' ? (kabList.find((x) => up(x.kab) === up(S.kab)) || null) : null;
   }
 
-  function paintStats(cur) {
+  function paintStats(cur, selectedKabObj) {
     let plg = 0, rpv = 0; const kps = new Set();
-    cur.forEach((r) => { plg += Number(r.Jumlah_Pelanggan || 0); rpv += Number(r.Jumlah_Rupiah || 0); kps.add(String(r.KP || '')); });
+    if (selectedKabObj && !hasKabColumnInGrid()) {
+      plg = selectedKabObj.plg;
+      rpv = selectedKabObj.rp;
+      kps.add(S.kp);
+    } else {
+      cur.forEach((r) => { plg += Number(r.Jumlah_Pelanggan || 0); rpv += Number(r.Jumlah_Rupiah || 0); kps.add(String(r.KP || '')); });
+    }
     R('sPlg').textContent = num(plg); R('sKp').textContent = num(kps.size); R('sRp').textContent = rp(rpv);
     const t = S.f; const reg = t.region === 'ALL' ? 'Semua region' : t.region;
-    R('ctx').textContent = `${TIPE[t.tipe] || t.tipe} · ${t.periode === 'ALL' ? 'Semua periode' : t.periode} · ${reg}`;
+    const extra = S.kp !== 'ALL' ? (S.kab !== 'ALL' ? ` · ${S.kp} (${S.kab})` : ` · ${S.kp}`) : '';
+    R('ctx').textContent = `${TIPE[t.tipe] || t.tipe} · ${t.periode === 'ALL' ? 'Semua periode' : t.periode} · ${reg}${extra}`;
     return plg;
   }
 
@@ -362,7 +441,7 @@
     S.pts = pts.map((p) => [p.lat, p.lng]);
     R('foot').textContent = `${num(total)} pelanggan di ${num(pts.length)} titik area`;
     if (!S.data.length) empty('Data peta belum tersedia', 'Jalankan skrip Colab terbaru, lalu klik Sinkronkan Data.');
-    else if (!pts.length) empty('Tidak ada titik untuk filter ini', 'Ubah periode, region, atau KP untuk melihat sebarannya.');
+    else if (!pts.length) empty('Tidak ada titik untuk filter ini', 'Ubah periode, region, KP, atau Kabupaten untuk melihat sebarannya.');
     return pts.length;
   }
 
@@ -412,10 +491,15 @@
     if (pl.error) { notice(pl.error); R('foot').textContent = '0 pin ditampilkan'; return; }
     if (pl.truncated) notice(`Menampilkan ${num(pl.rows.length)} dari ${num(pl.totalMatched)} pelanggan. Pilih KP yang lebih spesifik agar semua titik tampil.`);
 
+    let pinList = pl.rows || [];
+    if (S.kab !== 'ALL' && pinList.some((r) => r[8] != null && String(r[8]).trim() !== '')) {
+      pinList = pinList.filter((r) => up(r[8]) === up(S.kab));
+    }
+
     const cg = g.L.markerClusterGroup ? g.L.markerClusterGroup({ chunkedLoading: true, maxClusterRadius: 45, showCoverageOnHover: false }) : g.L.layerGroup();
     const icon = g.L.divIcon({ className: '', html: '<div class="pm-pin"></div>', iconSize: [14, 14], iconAnchor: [7, 7] });
     const bs = [];
-    pl.rows.forEach((r) => {
+    pinList.forEach((r) => {
       const lat = Number(r[4]), lng = Number(r[5]);
       if (!okXY(lat, lng)) return;
       bs.push([lat, lng]);
@@ -430,22 +514,40 @@
   async function render(force) {
     if (!S.map) return;
     if (!vis()) { S.sig = ''; return; }
-    const sig = [S.f.tipe, S.f.periode, S.f.region, S.kp, S.mode, S.ver].join('|');
+    const sig = [S.f.tipe, S.f.periode, S.f.region, S.kp, S.kab, S.mode, S.ver].join('|');
     if (sig === S.sig && !force) return;
     S.sig = sig;
     const my = ++S.token;
     if (S.abort) { S.abort.abort(); S.abort = null; }
     S.layer.clearLayers(); spin(false); empty(null); notice('');
-    const all = rows(true);
+    const all = rows(true, true);
     paintKpSelect(all);
-    S.sig = [S.f.tipe, S.f.periode, S.f.region, S.kp, S.mode, S.ver].join('|');
-    paintStats(rows()); paintRank(all); paintAct(); paintSeg(); paintLegend();
-    if (S.mode === 'ringkasan') { drawSummary(); fitTo(S.pts, 13); }
-    else { await drawPins(my); if (my === S.token) fitTo(S.pts, 16); }
+    const selectedKabObj = paintRank(all);
+    S.sig = [S.f.tipe, S.f.periode, S.f.region, S.kp, S.kab, S.mode, S.ver].join('|');
+    paintStats(rows(), selectedKabObj); paintAct(); paintSeg(); paintLegend();
+
+    if (S.mode === 'ringkasan') {
+      drawSummary();
+      if (S.kp !== 'ALL' && S.kab !== 'ALL' && !hasKabColumnInGrid()) {
+        await focusMapToKab(S.kab, my);
+      } else {
+        fitTo(S.pts, 13);
+      }
+    } else {
+      await drawPins(my);
+      if (my === S.token) {
+        if (S.kp !== 'ALL' && S.kab !== 'ALL') {
+          await focusMapToKab(S.kab, my);
+        } else {
+          fitTo(S.pts, 16);
+        }
+      }
+    }
   }
   const later = () => { clearTimeout(S.timer); S.timer = setTimeout(() => render(), 60); };
 
-  function setKp(k, mode) { S.kp = k; if (mode) S.mode = mode; render(); }
+  function setKp(k, mode) { S.kp = k; S.kab = 'ALL'; if (mode) S.mode = mode; render(); }
+  function setKab(k) { S.kab = k; render(); }
   function setMode(m) { S.mode = m; render(); }
 
   function toggleFs(on) {
@@ -496,12 +598,14 @@
     initMap(); paintSeg(); paintLegend();
     R('kp').addEventListener('change', (e) => setKp(e.target.value));
     host.addEventListener('click', (e) => {
-      const a = e.target.closest('[data-pm],[data-kp-pick],[data-act],[data-mode]');
+      const a = e.target.closest('[data-pm],[data-kp-pick],[data-kab-pick],[data-act],[data-mode]');
       if (!a) return;
       if (a.dataset.pm === 'drill') { S.map.closePopup(); setKp(a.dataset.kp, 'detail'); }
       else if (a.dataset.pm === 'copy') copy(a, a.dataset.id);
       else if (a.dataset.kpPick !== undefined) setKp(up(S.kp) === up(a.dataset.kpPick) ? 'ALL' : a.dataset.kpPick);
+      else if (a.dataset.kabPick !== undefined) setKab(up(S.kab) === up(a.dataset.kabPick) ? 'ALL' : a.dataset.kabPick);
       else if (a.dataset.act === 'pins') setMode('detail');
+      else if (a.dataset.act === 'clear-kab') setKab('ALL');
       else if (a.dataset.act === 'clear') setKp('ALL');
       else if (a.dataset.mode) setMode(a.dataset.mode);
     });
@@ -521,7 +625,7 @@
     setData(r) { S.data = r || []; S.ver++; later(); },
     setProgresData(r) { S.progresData = r || []; S.ver++; later(); },
     setFilter(f) { Object.assign(S.f, f || {}); later(); },
-    resetKp() { S.kp = 'ALL'; later(); },
+    resetKp() { S.kp = 'ALL'; S.kab = 'ALL'; later(); },
     clearCache() { S.cache = {}; S.ver++; },
     onShow() { if (S.map) { setTimeout(() => { S.map.invalidateSize(); S.sig = ''; render(); }, 120); } }
   };
