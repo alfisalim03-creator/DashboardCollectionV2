@@ -22,7 +22,7 @@
   const LAT = [-11.2, 6.2], LNG = [94.8, 141.2];
   const TIPE = { prepaid: 'Prabayar', postpaid: 'Pascabayar', all: 'Semua tagihan' };
   const S = { root: null, map: null, layer: null, boundaryLayer: null, box: null, cfg: {}, data: [], progresData: [], ver: 0,
-    f: { tipe: 'prepaid', periode: 'ALL', region: 'ALL' }, kp: 'ALL', kab: 'ALL', mode: 'ringkasan',
+    f: { tipe: 'prepaid', periode: 'ALL', region: 'ALL' }, kp: 'ALL', kab: 'ALL', lastRankKp: null, mode: 'ringkasan',
     cache: {}, geoCache: {}, kabBounds: null, token: 0, abort: null, sig: '', fs: false, pts: [], timer: 0, hintT: 0, touch: false };
 
   const R = (n) => S.root.querySelector('[data-r="' + n + '"]');
@@ -82,7 +82,18 @@
   .pm-pin-marker:hover{z-index:900!important}
   .pm-wrap button:focus-visible,.pm-wrap select:focus-visible{outline:2px solid #f43f5e;outline-offset:2px}
   .pm-hint{transition:opacity .3s}
-  @media (prefers-reduced-motion:reduce){.pm-hint,.pm-pin-dot{transition:none}}`;
+  @keyframes pmCascadeDown{
+    from{opacity:0;transform:translateY(-10px)}
+    to{opacity:1;transform:translateY(0)}
+  }
+  .pm-cascade-item{
+    opacity:0;
+    animation:pmCascadeDown .34s cubic-bezier(.22,1,.36,1) forwards;
+  }
+  @media (prefers-reduced-motion:reduce){
+    .pm-hint,.pm-pin-dot{transition:none}
+    .pm-cascade-item{animation:none;opacity:1}
+  }`;
 
   const I = {
     pin: '<svg class="w-4 h-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>',
@@ -432,6 +443,9 @@
     const rankEl = R('rank');
     const footEl = R('rankFoot');
 
+    const kpChanged = S.lastRankKp !== S.kp;
+    S.lastRankKp = S.kp;
+
     const kpMap = {};
     all.forEach((r) => {
       const k = r.KP || '-';
@@ -450,7 +464,9 @@
       footEl.classList.add('hidden');
 
       const max = kpList.length ? kpList[0].plg || 1 : 1;
-      rankEl.innerHTML = kpList.map((x, i) => `<li>
+      rankEl.innerHTML = kpList.map((x, i) => {
+        const animAttr = kpChanged ? `class="pm-cascade-item" style="animation-delay:${Math.min(i, 12) * 25}ms"` : '';
+        return `<li ${animAttr}>
         <button type="button" data-kp-pick="${esc(x.kp)}" class="group w-full text-left p-2.5 rounded-xl bg-white border border-slate-100 hover:border-rose-300 hover:bg-rose-50/50 transition-colors shadow-2xs">
           <div class="flex items-start gap-2">
             <span class="w-5 text-center text-[11px] font-bold text-slate-400 mt-0.5">${i + 1}</span>
@@ -470,7 +486,8 @@
             <div class="h-1.5 rounded-full" style="width:${Math.max(3, (x.plg / max) * 100).toFixed(1)}%;background:${col(x.plg)}"></div>
           </div>
         </button>
-      </li>`).join('') || '<li class="text-xs text-slate-400 p-2">Belum ada data untuk filter ini.</li>';
+      </li>`;
+      }).join('') || '<li class="text-xs text-slate-400 p-2">Belum ada data untuk filter ini.</li>';
       return null;
     }
 
@@ -514,7 +531,8 @@
 
     rankEl.innerHTML = kabList.map((x, i) => {
       const on = S.kab !== 'ALL' && normalizeKabKey(x.kab) === normalizeKabKey(S.kab);
-      return `<li>
+      const animAttr = kpChanged ? `class="pm-cascade-item" style="animation-delay:${Math.min(i, 15) * 40}ms"` : '';
+      return `<li ${animAttr}>
         <button type="button" data-kab-pick="${esc(x.kab)}" aria-pressed="${on}"
           class="group w-full text-left p-2.5 rounded-xl border transition-all shadow-2xs ${on ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-200' : 'bg-white border-slate-100 hover:border-rose-300 hover:bg-rose-50/50'}">
           <div class="flex items-start gap-2">
@@ -539,6 +557,12 @@
     }).join('');
 
     footEl.classList.remove('hidden');
+    if (kpChanged) {
+      footEl.classList.remove('pm-cascade-item');
+      void footEl.offsetWidth;
+      footEl.classList.add('pm-cascade-item');
+      footEl.style.animationDelay = `${Math.min(kabList.length, 15) * 40}ms`;
+    }
     footEl.innerHTML = `<span>Total (${num(kabList.length)} Kab/Kota)</span><strong class="text-rose-600">${num(totPlg)} plg · ${rp(totRp)}</strong>`;
 
     return S.kab !== 'ALL' ? (kabList.find((x) => normalizeKabKey(x.kab) === normalizeKabKey(S.kab)) || null) : null;
