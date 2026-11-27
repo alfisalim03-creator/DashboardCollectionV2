@@ -13,19 +13,17 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <script>
-/* progres-map.js: modul Peta Tunggakan Aktif (Optimized: Pre-indexed, Canvas Pins, Lazy Popups, Deferred Render) */
+/* progres-map.js: modul Peta Tunggakan Aktif untuk tab Progres Tagihan
+   Butuh: Leaflet 1.9.4, leaflet.markercluster 1.5.3 (dist/leaflet.markercluster.js), Tailwind CDN.
+   API: ProgresMap.mount(sel,{webAppUrl}) / setData(rows) / setProgresData(rows)
+        / setFilter({tipe,periode,region}) / resetKp() / clearCache() / onShow() */
 (function (g) {
   'use strict';
   const LAT = [-11.2, 6.2], LNG = [94.8, 141.2];
   const TIPE = { prepaid: 'Prabayar', postpaid: 'Pascabayar', all: 'Semua tagihan' };
-  const S = {
-    root: null, map: null, layer: null, boundaryLayer: null, box: null, cfg: {},
-    data: [], progresData: [], hasKabCol: false, ver: 0,
-    f: { tipe: 'prepaid', periode: 'ALL', region: 'ALL' },
-    kp: 'ALL', kab: 'ALL', lastRankKp: null, mode: 'ringkasan',
-    cache: {}, geoCache: {}, kabBounds: null, token: 0, abort: null,
-    sig: '', fs: false, pts: [], timer: 0, hintT: 0, touch: false
-  };
+  const S = { root: null, map: null, layer: null, boundaryLayer: null, box: null, cfg: {}, data: [], progresData: [], ver: 0,
+    f: { tipe: 'prepaid', periode: 'ALL', region: 'ALL' }, kp: 'ALL', kab: 'ALL', lastRankKp: null, mode: 'ringkasan',
+    cache: {}, geoCache: {}, kabBounds: null, token: 0, abort: null, sig: '', fs: false, pts: [], timer: 0, hintT: 0, touch: false };
 
   const R = (n) => S.root.querySelector('[data-r="' + n + '"]');
   const esc = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -35,23 +33,43 @@
   const up = (v) => String(v == null ? '' : v).trim().toUpperCase();
   const okXY = (a, b) => a >= LAT[0] && a <= LAT[1] && b >= LNG[0] && b <= LNG[1];
   const col = (n) => (n > 100 ? '#e11d48' : n >= 25 ? '#f97316' : '#fbbf24');
-  const vis = () => S.root && S.root.getClientRects().length > 0;
+  const vis = () => S.root.getClientRects().length > 0;
 
   function animStat(el, endVal, isRp) {
     if (!el) return;
-    if (g.AnimEngine) {
-      g.AnimEngine.to(el, endVal, isRp ? 'rp' : 'int');
+    const target = Math.round(Number(endVal) || 0);
+    const fmt = (v) => (isRp ? rp(v) : num(v));
+    if (g.matchMedia && g.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      el._curVal = target;
+      el.textContent = fmt(target);
       return;
     }
-    const target = Math.round(Number(endVal) || 0);
-    el._curVal = target;
-    el.textContent = isRp ? rp(target) : num(target);
+    const start = typeof el._curVal === 'number' ? el._curVal : 0;
+    if (start === target) {
+      el.textContent = fmt(target);
+      return;
+    }
+    const tok = (el._animTok = (el._animTok || 0) + 1);
+    const dur = 850;
+    let t0 = null;
+    function tick(ts) {
+      if (el._animTok !== tok) return;
+      if (!t0) t0 = ts;
+      const p = Math.min((ts - t0) / dur, 1);
+      const ease = p === 1 ? 1 : 1 - Math.pow(1 - p, 4);
+      const cur = p === 1 ? target : Math.round(start + (target - start) * ease);
+      el._curVal = cur;
+      el.textContent = fmt(cur);
+      if (p < 1) g.requestAnimationFrame(tick);
+    }
+    g.requestAnimationFrame(tick);
   }
 
   function cleanKabLabel(raw) {
     let s = String(raw == null ? '' : raw).trim();
     if (!s) return '(Tidak Terdeteksi)';
-    return s.replace(/^(Kota|Kabupaten|Kab\.?)\s+\1\s+/i, '$1 ');
+    s = s.replace(/^(Kota|Kabupaten|Kab\.?)\s+\1\s+/i, '$1 ');
+    return s;
   }
 
   function normalizeKabKey(raw) {
@@ -63,7 +81,7 @@
       .trim();
   }
 
-  function extractKabName(r) {
+  function getKabName(r) {
     if (!r) return '(Tidak Terdeteksi)';
     if (r.Kabupaten != null && String(r.Kabupaten).trim() !== '') return cleanKabLabel(r.Kabupaten);
     for (const k of Object.keys(r)) {
@@ -76,75 +94,46 @@
     return '(Tidak Terdeteksi)';
   }
 
-  function indexGridRows(rawRows) {
-    let foundKab = false;
-    const out = new Array(rawRows.length);
-    for (let i = 0; i < rawRows.length; i++) {
-      const r = rawRows[i];
-      const kabLabel = extractKabName(r);
-      if (kabLabel !== '(Tidak Terdeteksi)') foundKab = true;
-      out[i] = {
-        raw: r,
-        _tipe: up(r.Tipe_Layanan),
-        _periode: String(r.Periode || '').trim(),
-        _region: up(r.Region),
-        _kp: up(r.KP),
-        _kpLabel: String(r.KP || '').trim() || '-',
-        _regLabel: r.Region || '-',
-        _kabLabel: kabLabel,
-        _kabKey: normalizeKabKey(kabLabel),
-        _lat: Number(r.lat_grid),
-        _lng: Number(r.lng_grid),
-        _plg: Number(r.Jumlah_Pelanggan || 0),
-        _tgh: Number(r.Jumlah_Tagihan || 0),
-        _rp: Number(r.Jumlah_Rupiah || 0)
-      };
-    }
-    S.hasKabCol = foundKab;
-    return out;
-  }
-
-  function indexProgresRows(rawRows) {
-    const out = [];
-    for (let i = 0; i < rawRows.length; i++) {
-      const r = rawRows[i];
-      const st = up(r.Status);
-      if (st !== 'BELUM BAYAR' && st !== 'BELUM LUNAS') continue;
-      const kabLabel = extractKabName(r);
-      out.push({
-        _tipe: up(r.Tipe_Layanan),
-        _periode: String(r.Periode || '').trim(),
-        _region: up(r.Region),
-        _kp: up(r.KP),
-        _kabLabel: kabLabel,
-        _kabKey: normalizeKabKey(kabLabel),
-        _plg: Number(r.Jumlah_Pelanggan || 0),
-        _rp: Number(r.Jumlah_Rupiah || 0)
-      });
-    }
-    return out;
+  function hasKabColumnInGrid() {
+    return S.data.some((r) => getKabName(r) !== '(Tidak Terdeteksi)');
   }
 
   const CSS = `
   .pm-wrap .leaflet-popup-content-wrapper{border-radius:14px;padding:0}
   .pm-wrap .leaflet-popup-content{margin:14px 16px!important;width:232px!important;font:12px/1.45 Inter,sans-serif}
   .pm-wrap .leaflet-container a.pm-link{color:#fff!important;text-decoration:none!important}
-  .pm-map{height:clamp(400px,62vh,660px);width:100%;z-index:1;contain:strict}
+  .pm-map{height:clamp(400px,62vh,660px);width:100%;z-index:1}
   .pm-box.pm-fs{position:fixed;inset:0;z-index:3000;border-radius:0;border:0}
   .pm-box.pm-fs .pm-map{height:100dvh}
   .pm-ctl a{display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .pm-pin-hit{width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:50%;background:transparent}
+  .pm-pin-dot{width:15px;height:15px;background:#e11d48;border:2.5px solid #fff;border-radius:50%;box-shadow:0 0 0 3px rgba(225,29,72,.22),0 2px 5px rgba(0,0,0,.45);transition:transform .16s ease,box-shadow .16s ease,background-color .16s ease;pointer-events:none}
+  .pm-pin-hit:hover .pm-pin-dot,.pm-pin-hit:focus-visible .pm-pin-dot{transform:scale(1.38);background:#be123c;box-shadow:0 0 0 7px rgba(225,29,72,.28),0 3px 8px rgba(0,0,0,.5)}
+  .pm-pin-marker:hover{z-index:900!important}
   .pm-wrap button:focus-visible,.pm-wrap select:focus-visible{outline:2px solid #f43f5e;outline-offset:2px}
-  .pm-hint{transition:opacity .25s}`;
+  .pm-hint{transition:opacity .3s}
+  @keyframes pmCascadeDown{
+    from{opacity:0;transform:translateY(-10px)}
+    to{opacity:1;transform:translateY(0)}
+  }
+  .pm-cascade-item{
+    opacity:0;
+    animation:pmCascadeDown .34s cubic-bezier(.22,1,.36,1) forwards;
+  }
+  @media (prefers-reduced-motion:reduce){
+    .pm-hint,.pm-pin-dot{transition:none}
+    .pm-cascade-item{animation:none;opacity:1}
+  }`;
 
   const I = {
     pin: '<svg class="w-4 h-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>',
     reset: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg>',
     fs: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5-5"/></svg>',
     fsx: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>',
-    chev: '<svg class="w-3.5 h-3.5 text-slate-400 group-hover:text-rose-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>'
+    chev: '<svg class="w-3.5 h-3.5 text-slate-400 group-hover:text-rose-500 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>'
   };
 
-  const SEG = 'px-3.5 py-2 min-h-[36px] rounded-lg text-xs font-semibold transition-colors';
+  const SEG = 'px-3.5 py-2 min-h-[36px] rounded-lg text-xs font-semibold transition-all';
   const TILE = 'rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5';
   const TPL = `
   <section class="pm-wrap bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 space-y-4">
@@ -173,8 +162,8 @@
         <div class="pm-box relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
           <div data-r="map" class="pm-map"></div>
           <div data-r="hint" class="pm-hint opacity-0 pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 z-[1000] px-3 py-1.5 rounded-full bg-slate-800/90 text-white text-xs font-medium whitespace-nowrap"></div>
-          <div data-r="empty" class="hidden absolute inset-0 z-[1000] items-center justify-center p-4 bg-white/90"></div>
-          <div data-r="spin" class="hidden absolute inset-0 z-[1000] items-center justify-center bg-white/80">
+          <div data-r="empty" class="hidden absolute inset-0 z-[1000] items-center justify-center p-4 bg-white/80 backdrop-blur-[2px]"></div>
+          <div data-r="spin" class="hidden absolute inset-0 z-[1000] items-center justify-center bg-white/75">
             <div class="bg-white px-4 py-2.5 rounded-xl shadow-md border border-slate-100 flex items-center gap-2.5 text-xs font-semibold text-slate-700">
               <div class="w-4 h-4 border-2 border-rose-500 border-t-transparent rounded-full animate-spin"></div><span data-r="spinTx">Memuat pin pelanggan...</span>
             </div>
@@ -226,7 +215,9 @@
   function pointInGeoExact(lat, lng, geojson) {
     if (!geojson) return true;
     if (geojson.type === 'Polygon') return pointInPolygonCoords(lng, lat, geojson.coordinates);
-    if (geojson.type === 'MultiPolygon') return geojson.coordinates.some((poly) => pointInPolygonCoords(lng, lat, poly));
+    if (geojson.type === 'MultiPolygon') {
+      return geojson.coordinates.some((poly) => pointInPolygonCoords(lng, lat, poly));
+    }
     return true;
   }
 
@@ -238,7 +229,11 @@
       if (lat < sLat - pad || lat > nLat + pad || lng < wLng - pad || lng > eLng + pad) return false;
     }
     if (!geoInfo.geojson) return true;
-    return pointInGeoExact(lat, lng, geoInfo.geojson);
+    if (pointInGeoExact(lat, lng, geoInfo.geojson)) return true;
+    return pointInGeoExact(lat + pad, lng, geoInfo.geojson) ||
+           pointInGeoExact(lat - pad, lng, geoInfo.geojson) ||
+           pointInGeoExact(lat, lng + pad, geoInfo.geojson) ||
+           pointInGeoExact(lat, lng - pad, geoInfo.geojson);
   }
 
   function simplifyRing(ring, minStep) {
@@ -258,7 +253,7 @@
 
   function simplifyGeoJSON(geo) {
     if (!geo) return null;
-    const step = 0.0008;
+    const step = 0.00035;
     if (geo.type === 'Polygon') {
       return { type: 'Polygon', coordinates: geo.coordinates.map((r) => simplifyRing(r, step)) };
     }
@@ -268,6 +263,7 @@
     return null;
   }
 
+  /* ---------- geocoding batas kabupaten (GeoJSON + BoundingBox) ---------- */
   async function fetchKabGeo(kabName) {
     const clean = cleanKabLabel(kabName);
     if (!clean || clean === '(Tidak Terdeteksi)') return null;
@@ -281,15 +277,21 @@
         S.geoCache[key] = parsed;
         return parsed;
       }
-    } catch (_) {}
+    } catch (_) { /* abaikan storage error */ }
 
     const isKab = /^KAB(\.|\s|UPATEN)/i.test(clean);
     const isKota = /^KOTA\s+/i.test(clean);
-    const baseName = clean.replace(/^KABUPATEN\s+/i, '').replace(/^KAB\.?\s+/i, '').replace(/^KOTA\s+/i, '').trim();
+    const baseName = clean
+      .replace(/^KABUPATEN\s+/i, '')
+      .replace(/^KAB\.?\s+/i, '')
+      .replace(/^KOTA\s+/i, '')
+      .trim();
+
     const fullQueryName = isKab ? ('Kabupaten ' + baseName) : isKota ? ('Kota ' + baseName) : clean;
     const queries = [fullQueryName + ', Indonesia'];
     if (isKab) queries.push(baseName + ' Regency, Indonesia');
     if (isKota) queries.push(baseName + ' City, Indonesia');
+    if (fullQueryName.toLowerCase() !== clean.toLowerCase()) queries.push(clean + ', Indonesia');
 
     for (const q of queries) {
       try {
@@ -306,6 +308,7 @@
           const hasPoly = item.geojson && (item.geojson.type === 'Polygon' || item.geojson.type === 'MultiPolygon');
           if (hasPoly) score += 100;
           else if (item.boundingbox && item.boundingbox.length === 4) score += 10;
+
           if (dn.includes(baseName.toLowerCase())) score += 30;
           if (isKab) {
             if (dn.startsWith('kota ') || dn.includes(', kota ' + baseName.toLowerCase())) score -= 90;
@@ -314,7 +317,12 @@
             if (dn.startsWith('kota ') || dn.includes(' city')) score += 45;
             if (dn.includes('regency') || dn.includes('kabupaten')) score -= 90;
           }
-          if (score > bestScore) { bestScore = score; best = item; }
+          if (item.category === 'boundary' || item.type === 'administrative') score += 20;
+
+          if (score > bestScore) {
+            bestScore = score;
+            best = item;
+          }
         }
 
         if (best && best.boundingbox && best.boundingbox.length === 4) {
@@ -326,10 +334,10 @@
             geojson: hasPoly ? simplifyGeoJSON(best.geojson) : null
           };
           S.geoCache[key] = geoInfo;
-          try { sessionStorage.setItem('pm_geo_v2_' + key, JSON.stringify(geoInfo)); } catch (_) {}
+          try { sessionStorage.setItem('pm_geo_v2_' + key, JSON.stringify(geoInfo)); } catch (_) { /* penuh */ }
           return geoInfo;
         }
-      } catch (_) {}
+      } catch (_) { /* abaikan error jaringan */ }
     }
 
     S.geoCache[key] = null;
@@ -344,66 +352,58 @@
     if (geoInfo.geojson) {
       g.L.geoJSON(geoInfo.geojson, {
         interactive: false,
-        style: { color: '#e11d48', weight: 2.5, opacity: 0.9, dashArray: '6, 5', fillColor: '#fb7185', fillOpacity: 0.08 }
+        style: { color: '#ffffff', weight: 5.5, opacity: 0.85, fill: false }
+      }).addTo(S.boundaryLayer);
+
+      g.L.geoJSON(geoInfo.geojson, {
+        interactive: false,
+        style: {
+          color: '#e11d48',
+          weight: 2.8,
+          opacity: 0.95,
+          dashArray: '7, 5',
+          fillColor: '#fb7185',
+          fillOpacity: 0.08
+        }
       }).addTo(S.boundaryLayer);
     } else if (geoInfo.bounds) {
       g.L.rectangle(geoInfo.bounds, {
         interactive: false,
-        color: '#e11d48', weight: 2.5, dashArray: '6, 5', fillColor: '#fb7185', fillOpacity: 0.07
+        color: '#e11d48',
+        weight: 2.5,
+        dashArray: '7, 5',
+        fillColor: '#fb7185',
+        fillOpacity: 0.07
       }).addTo(S.boundaryLayer);
     }
   }
 
-  /* ---------- data (1-pass filter) ---------- */
-  function queryGridRows() {
-    const tipeUp = up(S.f.tipe);
-    const isAllTipe = tipeUp === 'ALL';
-    const perStr = String(S.f.periode || '').trim();
-    const isAllPer = perStr === 'ALL';
-    const regUp = up(S.f.region);
-    const isAllReg = regUp === 'ALL';
-    const kpUp = up(S.kp);
-    const isAllKp = kpUp === 'ALL';
-    const kabKey = normalizeKabKey(S.kab);
-    const filterByKabCol = !isAllKp && S.kab !== 'ALL' && S.hasKabCol;
-
-    const allInRegion = [];
-    const filtered = [];
-
-    for (let i = 0; i < S.data.length; i++) {
-      const r = S.data[i];
-      if (isAllTipe ? (r._tipe !== 'PREPAID' && r._tipe !== 'POSTPAID') : r._tipe !== tipeUp) continue;
-      if (!isAllPer && r._periode !== perStr) continue;
-      if (!isAllReg && r._region !== regUp) continue;
-
-      allInRegion.push(r);
-
-      if (!isAllKp && r._kp !== kpUp) continue;
-      if (filterByKabCol && r._kabKey !== kabKey) continue;
-      filtered.push(r);
-    }
-    return { allInRegion, filtered };
+  /* ---------- data ---------- */
+  function rows(skipKp, skipKab) {
+    const { tipe, periode, region } = S.f;
+    const filterByKabCol = !skipKab && S.kp !== 'ALL' && S.kab !== 'ALL' && hasKabColumnInGrid();
+    return S.data.filter((r) => {
+      const t = up(r.Tipe_Layanan);
+      if (tipe === 'all' ? (t !== 'PREPAID' && t !== 'POSTPAID') : t !== up(tipe)) return false;
+      if (periode !== 'ALL' && String(r.Periode || '').trim() !== String(periode).trim()) return false;
+      if (region !== 'ALL' && up(r.Region) !== up(region)) return false;
+      if (!skipKp && S.kp !== 'ALL' && up(r.KP) !== up(S.kp)) return false;
+      if (filterByKabCol && normalizeKabKey(getKabName(r)) !== normalizeKabKey(S.kab)) return false;
+      return true;
+    });
   }
 
   function kabRowsForSelectedKp() {
-    const tipeUp = up(S.f.tipe);
-    const isAllTipe = tipeUp === 'ALL';
-    const perStr = String(S.f.periode || '').trim();
-    const isAllPer = perStr === 'ALL';
-    const regUp = up(S.f.region);
-    const isAllReg = regUp === 'ALL';
-    const kpUp = up(S.kp);
-
-    const out = [];
-    for (let i = 0; i < S.progresData.length; i++) {
-      const r = S.progresData[i];
-      if (isAllTipe ? (r._tipe !== 'PREPAID' && r._tipe !== 'POSTPAID') : r._tipe !== tipeUp) continue;
-      if (!isAllPer && r._periode !== perStr) continue;
-      if (!isAllReg && r._region !== regUp) continue;
-      if (r._kp !== kpUp) continue;
-      out.push(r);
-    }
-    return out;
+    const { tipe, periode, region } = S.f;
+    return S.progresData.filter((r) => {
+      const t = up(r.Tipe_Layanan);
+      if (tipe === 'all' ? (t !== 'PREPAID' && t !== 'POSTPAID') : t !== up(tipe)) return false;
+      if (periode !== 'ALL' && String(r.Periode || '').trim() !== String(periode).trim()) return false;
+      if (region !== 'ALL' && up(r.Region) !== up(region)) return false;
+      if (up(r.KP) !== up(S.kp)) return false;
+      const st = up(r.Status);
+      return st === 'BELUM BAYAR' || st === 'BELUM LUNAS';
+    });
   }
 
   /* ---------- UI helpers ---------- */
@@ -456,11 +456,7 @@
       <button type="button" data-act="clear" class="px-3 py-2 rounded-lg bg-white border border-rose-200 text-rose-700 hover:bg-rose-100 text-xs font-semibold">Hapus pilihan</button></span>`;
   }
   function paintKpSelect(all) {
-    const kpSet = new Set();
-    for (let i = 0; i < all.length; i++) {
-      if (all[i]._kpLabel && all[i]._kpLabel !== '-') kpSet.add(all[i]._kpLabel);
-    }
-    const kps = [...kpSet].sort();
+    const kps = [...new Set(all.map((r) => String(r.KP || '').trim()).filter(Boolean))].sort();
     if (S.kp !== 'ALL' && !kps.some((k) => up(k) === up(S.kp))) { S.kp = 'ALL'; S.kab = 'ALL'; }
     const sel = R('kp');
     sel.innerHTML = '<option value="ALL">Semua KP</option>' + kps.map((k) => `<option value="${esc(k)}">${esc(k)}</option>`).join('');
@@ -474,16 +470,17 @@
     const backBtn = R('rankBack');
     const rankEl = R('rank');
     const footEl = R('rankFoot');
+
+    const kpChanged = S.lastRankKp !== S.kp;
     S.lastRankKp = S.kp;
 
     const kpMap = {};
-    for (let i = 0; i < all.length; i++) {
-      const r = all[i];
-      const k = r._kpLabel;
-      const o = kpMap[k] || (kpMap[k] = { kp: k, region: r._regLabel, plg: 0, rp: 0 });
-      o.plg += r._plg;
-      o.rp += r._rp;
-    }
+    all.forEach((r) => {
+      const k = r.KP || '-';
+      const o = kpMap[k] || (kpMap[k] = { kp: k, region: r.Region || '-', plg: 0, rp: 0 });
+      o.plg += Number(r.Jumlah_Pelanggan || 0);
+      o.rp += Number(r.Jumlah_Rupiah || 0);
+    });
     const kpList = Object.values(kpMap).sort((a, b) => b.plg - a.plg);
     S.top = kpList.slice(0, 4).map((x) => x.kp);
 
@@ -495,8 +492,10 @@
       footEl.classList.add('hidden');
 
       const max = kpList.length ? kpList[0].plg || 1 : 1;
-      rankEl.innerHTML = kpList.map((x, i) => `<li>
-        <button type="button" data-kp-pick="${esc(x.kp)}" class="group w-full text-left p-2.5 rounded-xl bg-white border border-slate-100 hover:border-rose-300 hover:bg-rose-50/50 transition-colors">
+      rankEl.innerHTML = kpList.map((x, i) => {
+        const animAttr = kpChanged ? `class="pm-cascade-item" style="animation-delay:${Math.min(i, 12) * 25}ms"` : '';
+        return `<li ${animAttr}>
+        <button type="button" data-kp-pick="${esc(x.kp)}" class="group w-full text-left p-2.5 rounded-xl bg-white border border-slate-100 hover:border-rose-300 hover:bg-rose-50/50 transition-colors shadow-2xs">
           <div class="flex items-start gap-2">
             <span class="w-5 text-center text-[11px] font-bold text-slate-400 mt-0.5">${i + 1}</span>
             <div class="min-w-0 flex-1">
@@ -515,7 +514,8 @@
             <div class="h-1.5 rounded-full" style="width:${Math.max(3, (x.plg / max) * 100).toFixed(1)}%;background:${col(x.plg)}"></div>
           </div>
         </button>
-      </li>`).join('') || '<li class="text-xs text-slate-400 p-2">Belum ada data untuk filter ini.</li>';
+      </li>`;
+      }).join('') || '<li class="text-xs text-slate-400 p-2">Belum ada data untuk filter ini.</li>';
       return null;
     }
 
@@ -527,14 +527,17 @@
     const kabMap = {};
     let totPlg = 0, totRp = 0;
 
-    for (let i = 0; i < kRows.length; i++) {
-      const r = kRows[i];
-      if (!kabMap[r._kabKey]) kabMap[r._kabKey] = { kab: r._kabLabel, plg: 0, rp: 0 };
-      kabMap[r._kabKey].plg += r._plg;
-      kabMap[r._kabKey].rp += r._rp;
-      totPlg += r._plg;
-      totRp += r._rp;
-    }
+    kRows.forEach((r) => {
+      const rawKab = getKabName(r);
+      const key = normalizeKabKey(rawKab);
+      if (!kabMap[key]) kabMap[key] = { kab: rawKab, plg: 0, rp: 0 };
+      const p = Number(r.Jumlah_Pelanggan || 0);
+      const v = Number(r.Jumlah_Rupiah || 0);
+      kabMap[key].plg += p;
+      kabMap[key].rp += v;
+      totPlg += p;
+      totRp += v;
+    });
 
     const kabList = Object.values(kabMap).sort((a, b) => (b.plg - a.plg) || (b.rp - a.rp));
     if (S.kab !== 'ALL' && !kabList.some((x) => normalizeKabKey(x.kab) === normalizeKabKey(S.kab))) {
@@ -556,9 +559,10 @@
 
     rankEl.innerHTML = kabList.map((x, i) => {
       const on = S.kab !== 'ALL' && normalizeKabKey(x.kab) === normalizeKabKey(S.kab);
-      return `<li>
+      const animAttr = kpChanged ? `class="pm-cascade-item" style="animation-delay:${Math.min(i, 15) * 40}ms"` : '';
+      return `<li ${animAttr}>
         <button type="button" data-kab-pick="${esc(x.kab)}" aria-pressed="${on}"
-          class="group w-full text-left p-2.5 rounded-xl border transition-colors ${on ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-200' : 'bg-white border-slate-100 hover:border-rose-300 hover:bg-rose-50/50'}">
+          class="group w-full text-left p-2.5 rounded-xl border transition-all shadow-2xs ${on ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-200' : 'bg-white border-slate-100 hover:border-rose-300 hover:bg-rose-50/50'}">
           <div class="flex items-start gap-2">
             <span class="w-5 text-center text-[11px] font-bold ${on ? 'text-rose-600' : 'text-slate-400'} mt-0.5">${i + 1}</span>
             <div class="min-w-0 flex-1">
@@ -581,6 +585,12 @@
     }).join('');
 
     footEl.classList.remove('hidden');
+    if (kpChanged) {
+      footEl.classList.remove('pm-cascade-item');
+      void footEl.offsetWidth;
+      footEl.classList.add('pm-cascade-item');
+      footEl.style.animationDelay = `${Math.min(kabList.length, 15) * 40}ms`;
+    }
     footEl.innerHTML = `<span>Total (${num(kabList.length)} Kab/Kota)</span><strong class="text-rose-600">${num(totPlg)} plg · ${rp(totRp)}</strong>`;
 
     return S.kab !== 'ALL' ? (kabList.find((x) => normalizeKabKey(x.kab) === normalizeKabKey(S.kab)) || null) : null;
@@ -588,16 +598,12 @@
 
   function paintStats(cur, selectedKabObj) {
     let plg = 0, rpv = 0; const kps = new Set();
-    if (selectedKabObj && !S.hasKabCol) {
+    if (selectedKabObj && !hasKabColumnInGrid()) {
       plg = selectedKabObj.plg;
       rpv = selectedKabObj.rp;
       kps.add(S.kp);
     } else {
-      for (let i = 0; i < cur.length; i++) {
-        plg += cur[i]._plg;
-        rpv += cur[i]._rp;
-        kps.add(cur[i]._kpLabel);
-      }
+      cur.forEach((r) => { plg += Number(r.Jumlah_Pelanggan || 0); rpv += Number(r.Jumlah_Rupiah || 0); kps.add(String(r.KP || '')); });
     }
     animStat(R('sPlg'), plg, false);
     animStat(R('sKp'), kps.size, false);
@@ -610,8 +616,8 @@
 
   /* ---------- peta ---------- */
   function fitTo(bs, maxZ) {
-    if (bs && bs.length) S.map.fitBounds(bs, { padding: [30, 30], maxZoom: maxZ, animate: false });
-    else S.map.fitBounds([[LAT[0], LNG[0]], [LAT[1], LNG[1]]], { animate: false });
+    if (bs && bs.length) S.map.fitBounds(bs, { padding: [30, 30], maxZoom: maxZ });
+    else S.map.fitBounds([[LAT[0], LNG[0]], [LAT[1], LNG[1]]]);
   }
 
   function summaryPopup(p) {
@@ -627,52 +633,31 @@
       </div></div>`;
   }
 
-  function drawSummary(filteredRows, geoInfo) {
+  function drawSummary(geoInfo) {
     const grid = {};
-    const useGeoFilter = S.kp !== 'ALL' && S.kab !== 'ALL' && !S.hasKabCol && geoInfo;
-
-    for (let i = 0; i < filteredRows.length; i++) {
-      const r = filteredRows[i];
-      if (!okXY(r._lat, r._lng)) continue;
-      if (useGeoFilter && !pointInKabGeo(r._lat, r._lng, geoInfo)) continue;
-      const k = r._lat + ',' + r._lng;
-      const p = grid[k] || (grid[k] = { lat: r._lat, lng: r._lng, plg: 0, tgh: 0, rp: 0, kps: {} });
-      p.plg += r._plg;
-      p.tgh += r._tgh;
-      p.rp += r._rp;
-      p.kps[r._kpLabel] = (p.kps[r._kpLabel] || 0) + r._plg;
-    }
-
+    const useGeoFilter = S.kp !== 'ALL' && S.kab !== 'ALL' && !hasKabColumnInGrid() && geoInfo;
+    rows().forEach((r) => {
+      const lat = Number(r.lat_grid), lng = Number(r.lng_grid);
+      if (!okXY(lat, lng)) return;
+      if (useGeoFilter && !pointInKabGeo(lat, lng, geoInfo)) return;
+      const k = lat + ',' + lng;
+      const p = grid[k] || (grid[k] = { lat, lng, plg: 0, tgh: 0, rp: 0, kps: {} });
+      const n = Number(r.Jumlah_Pelanggan || 0), kp = r.KP || '-';
+      p.plg += n; p.tgh += Number(r.Jumlah_Tagihan || 0); p.rp += Number(r.Jumlah_Rupiah || 0);
+      p.kps[kp] = (p.kps[kp] || 0) + n;
+    });
     const pts = Object.values(grid).sort((a, b) => b.plg - a.plg);
     let total = 0;
-    const markers = new Array(pts.length);
-
-    for (let i = 0; i < pts.length; i++) {
-      const p = pts[i];
+    pts.forEach((p) => {
       total += p.plg;
-      const c = g.L.circleMarker([p.lat, p.lng], {
-        radius: Math.min(20, Math.max(6, Math.sqrt(p.plg) * 1.4)),
-        fillColor: col(p.plg),
-        color: '#ffffff',
-        weight: 1.2,
-        fillOpacity: 0.85
-      });
-      c.on('click', function () {
-        if (!this.getPopup()) this.bindPopup(summaryPopup(p), { maxWidth: 260 });
-        this.openPopup();
-      });
-      c.on('mouseover', function () {
-        if (!this.getTooltip()) this.bindTooltip(num(p.plg) + ' pelanggan', { sticky: true });
-        this.openTooltip();
-      });
-      markers[i] = c;
-    }
-
-    const lg = g.L.layerGroup(markers);
-    S.layer.addLayer(lg);
+      const c = g.L.circleMarker([p.lat, p.lng], { radius: Math.min(22, Math.max(7, Math.sqrt(p.plg) * 1.5)),
+        fillColor: col(p.plg), color: '#fff', weight: 1.5, fillOpacity: 0.85 });
+      c.bindTooltip(num(p.plg) + ' pelanggan', { sticky: true });
+      c.bindPopup(summaryPopup(p), { maxWidth: 260 });
+      S.layer.addLayer(c);
+    });
     S.pts = pts.map((p) => [p.lat, p.lng]);
     R('foot').textContent = `${num(total)} pelanggan di ${num(pts.length)} titik area`;
-
     if (!S.data.length) empty('Data peta belum tersedia', 'Jalankan skrip Colab terbaru, lalu klik Sinkronkan Data.');
     else if (!pts.length) empty('Tidak ada titik untuk filter ini', 'Ubah periode, region, KP, atau Kabupaten untuk melihat sebarannya.');
     return pts.length;
@@ -738,40 +723,29 @@
     const cg = g.L.markerClusterGroup
       ? g.L.markerClusterGroup({
           chunkedLoading: true,
-          chunkInterval: 100,
-          chunkDelay: 25,
-          maxClusterRadius: 45,
+          maxClusterRadius: 40,
           spiderfyOnMaxZoom: true,
           zoomToBoundsOnClick: true,
-          showCoverageOnHover: false,
-          animate: false
+          spiderfyDistanceMultiplier: 1.35,
+          showCoverageOnHover: false
         })
       : g.L.layerGroup();
 
+    const icon = g.L.divIcon({
+      className: 'pm-pin-marker',
+      html: '<div class="pm-pin-hit"><span class="pm-pin-dot"></span></div>',
+      iconSize: [34, 34],
+      iconAnchor: [17, 17],
+      popupAnchor: [0, -12]
+    });
+
     const bs = [];
-    const batchMarkers = [];
-    for (let i = 0; i < pinList.length; i++) {
-      const r = pinList[i];
+    pinList.forEach((r) => {
       const lat = Number(r[4]), lng = Number(r[5]);
-      if (!okXY(lat, lng)) continue;
+      if (!okXY(lat, lng)) return;
       bs.push([lat, lng]);
-      const cm = g.L.circleMarker([lat, lng], {
-        radius: 7,
-        fillColor: '#e11d48',
-        color: '#ffffff',
-        weight: 2,
-        fillOpacity: 0.95
-      });
-      cm.on('click', function () {
-        if (!this.getPopup()) this.bindPopup(pinPopup(r), { maxWidth: 260 });
-        this.openPopup();
-      });
-      batchMarkers.push(cm);
-    }
-
-    if (cg.addLayers) cg.addLayers(batchMarkers);
-    else batchMarkers.forEach((m) => cg.addLayer(m));
-
+      cg.addLayer(g.L.marker([lat, lng], { icon, riseOnHover: true }).bindPopup(pinPopup(r), { maxWidth: 260 }));
+    });
     S.layer.addLayer(cg); S.pts = bs;
     R('foot').textContent = `${num(bs.length)} pin ditampilkan` + (S.kab !== 'ALL' ? ` (${S.kab})` : '');
     if (!bs.length) empty('Tidak ada koordinat valid', 'Pelanggan di filter ini belum punya titik koordinat di dalam batas ' + (S.kab !== 'ALL' ? S.kab : 'area ini') + '.', null, true);
@@ -791,12 +765,11 @@
     S.kabBounds = null;
     spin(false); empty(null); notice('');
 
-    const { allInRegion, filtered } = queryGridRows();
-    paintKpSelect(allInRegion);
-    const selectedKabObj = paintRank(allInRegion);
+    const all = rows(true, true);
+    paintKpSelect(all);
+    const selectedKabObj = paintRank(all);
     S.sig = [S.f.tipe, S.f.periode, S.f.region, S.kp, S.kab, S.mode, S.ver].join('|');
-    paintStats(filtered, selectedKabObj);
-    paintAct(); paintSeg(); paintLegend();
+    paintStats(rows(), selectedKabObj); paintAct(); paintSeg(); paintLegend();
 
     let geoInfo = null;
     if (S.kp !== 'ALL' && S.kab !== 'ALL' && S.kab !== '(Tidak Terdeteksi)') {
@@ -811,22 +784,24 @@
     }
 
     if (S.mode === 'ringkasan') {
-      drawSummary(filtered, geoInfo);
-      if (geoInfo && geoInfo.bounds) S.map.fitBounds(geoInfo.bounds, { padding: [28, 28], maxZoom: 13, animate: false });
-      else fitTo(S.pts, 13);
+      drawSummary(geoInfo);
+      if (geoInfo && geoInfo.bounds) {
+        S.map.flyToBounds(geoInfo.bounds, { padding: [28, 28], maxZoom: 13, duration: 0.65 });
+      } else {
+        fitTo(S.pts, 13);
+      }
     } else {
       await drawPins(my, geoInfo);
       if (my === S.token) {
-        if (geoInfo && geoInfo.bounds) S.map.fitBounds(geoInfo.bounds, { padding: [28, 28], maxZoom: 13, animate: false });
-        else fitTo(S.pts, 16);
+        if (geoInfo && geoInfo.bounds) {
+          S.map.flyToBounds(geoInfo.bounds, { padding: [28, 28], maxZoom: 13, duration: 0.65 });
+        } else {
+          fitTo(S.pts, 16);
+        }
       }
     }
   }
-
-  const later = (delay = 280) => {
-    clearTimeout(S.timer);
-    S.timer = setTimeout(() => render(), delay);
-  };
+  const later = () => { clearTimeout(S.timer); S.timer = setTimeout(() => render(), 60); };
 
   function setKp(k, mode) { S.kp = k; S.kab = 'ALL'; if (mode) S.mode = mode; render(); }
   function setKab(k) { S.kab = k; render(); }
@@ -834,7 +809,9 @@
 
   function toggleFs(on) {
     S.fs = on == null ? !S.fs : on;
+    const w = document.getElementById('dashboardWrapper');
     S.box.classList.toggle('pm-fs', S.fs);
+    if (w) w.style.transform = S.fs ? 'none' : '';
     document.body.style.overflow = S.fs ? 'hidden' : '';
     const b = S.root.querySelector('[data-c="fs"]');
     if (b) { b.innerHTML = S.fs ? I.fsx : I.fs; b.title = b.ariaLabel = S.fs ? 'Keluar layar penuh' : 'Layar penuh'; }
@@ -845,13 +822,10 @@
   function initMap() {
     const L = g.L; S.touch = !!L.Browser.mobile;
     const b = L.latLngBounds([LAT[0], LNG[0]], [LAT[1], LNG[1]]);
-    const map = (S.map = L.map(R('map'), {
-      center: [-2.5, 118], zoom: 5, minZoom: 4, maxBounds: b.pad(0.2),
-      maxBoundsViscosity: 0.9, scrollWheelZoom: false, dragging: !S.touch,
-      preferCanvas: true, zoomAnimation: true, fadeAnimation: false
-    }));
-    const street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap', maxZoom: 19, noWrap: true, updateWhenIdle: true });
-    const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles &copy; Esri', maxNativeZoom: 17, maxZoom: 19, noWrap: true, updateWhenIdle: true });
+    const map = (S.map = L.map(R('map'), { center: [-2.5, 118], zoom: 5, minZoom: 4, maxBounds: b.pad(0.2),
+      maxBoundsViscosity: 0.9, scrollWheelZoom: false, dragging: !S.touch, preferCanvas: true }));
+    const street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap', maxZoom: 19, noWrap: true });
+    const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles &copy; Esri', maxNativeZoom: 17, maxZoom: 19, noWrap: true });
     street.addTo(map);
     L.control.layers({ 'Peta jalan': street, Satelit: sat }, null, { position: 'topright' }).addTo(map);
     const Ctl = L.Control.extend({ options: { position: 'topleft' }, onAdd() {
@@ -863,7 +837,7 @@
         const c = e.target.closest('[data-c]');
         if (!c) return;
         if (c.dataset.c === 'fs') toggleFs();
-        else if (S.kab !== 'ALL' && S.kabBounds) S.map.fitBounds(S.kabBounds, { padding: [28, 28], maxZoom: 13, animate: false });
+        else if (S.kab !== 'ALL' && S.kabBounds) S.map.fitBounds(S.kabBounds, { padding: [28, 28], maxZoom: 13 });
         else fitTo(S.pts, 13);
       });
       return d; } });
@@ -873,10 +847,11 @@
     map.on('click', () => map.scrollWheelZoom.enable());
     map.on('mouseout', () => map.scrollWheelZoom.disable());
     R('map').addEventListener('wheel', () => { if (!S.touch && !map.scrollWheelZoom.enabled()) hint('Klik peta dulu untuk zoom dengan scroll'); }, { passive: true });
-    new ResizeObserver(() => { map.invalidateSize(); if (!S.sig && vis()) render(); }).observe(R('map'));
+    new ResizeObserver(() => { map.invalidateSize(); if (!S.sig) render(); }).observe(R('map'));
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && S.fs) toggleFs(false); });
   }
 
+  /* ---------- API ---------- */
   function mount(sel, cfg) {
     if (S.root) return;
     const host = typeof sel === 'string' ? document.querySelector(sel) : sel;
@@ -884,7 +859,7 @@
     S.cfg = cfg || {};
     if (!document.getElementById('pm-css')) { const st = document.createElement('style'); st.id = 'pm-css'; st.textContent = CSS; document.head.appendChild(st); }
     host.innerHTML = TPL; S.root = host; S.box = host.querySelector('.pm-box');
-    if (!g.L) { notice('Leaflet gagal dimuat. Periksa koneksi internet, lalu muat ulang halaman.'); return; }
+    if (!g.L) { notice('Leaflet gagal dimuat. Periksa koneksi atau pemblokiran unpkg.com, lalu muat ulang halaman.'); return; }
     initMap(); paintSeg(); paintLegend();
     R('kp').addEventListener('change', (e) => setKp(e.target.value));
     host.addEventListener('click', (e) => {
@@ -902,23 +877,22 @@
     if (S.touch) hint('Gunakan dua jari untuk menggeser dan zoom peta', 3500);
     render();
   }
-
   async function copy(btn, text) {
     try { await navigator.clipboard.writeText(text); } catch (e) {
       const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select();
-      try { document.execCommand('copy'); } catch (_) {} t.remove();
+      try { document.execCommand('copy'); } catch (_) { /* abaikan */ } t.remove();
     }
     const o = btn.textContent; btn.textContent = 'Tersalin'; setTimeout(() => (btn.textContent = o), 1500);
   }
 
   g.ProgresMap = {
     mount,
-    setData(r) { S.data = indexGridRows(r || []); S.ver++; if (vis()) later(100); },
-    setProgresData(r) { S.progresData = indexProgresRows(r || []); S.ver++; if (vis()) later(100); },
-    setFilter(f) { Object.assign(S.f, f || {}); if (vis()) later(280); },
-    resetKp() { S.kp = 'ALL'; S.kab = 'ALL'; if (vis()) later(100); },
+    setData(r) { S.data = r || []; S.ver++; later(); },
+    setProgresData(r) { S.progresData = r || []; S.ver++; later(); },
+    setFilter(f) { Object.assign(S.f, f || {}); later(); },
+    resetKp() { S.kp = 'ALL'; S.kab = 'ALL'; later(); },
     clearCache() { S.cache = {}; S.ver++; },
-    onShow() { if (S.map) { setTimeout(() => { S.map.invalidateSize(); S.sig = ''; render(true); }, 160); } }
+    onShow() { if (S.map) { setTimeout(() => { S.map.invalidateSize(); S.sig = ''; render(); }, 120); } }
   };
 })(window);
     </script>
@@ -935,17 +909,16 @@
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* Transisi opacity ringan tanpa transform agar Leaflet Canvas tetap di 60 FPS */
-        #dashboardWrapper { opacity: 1; transition: opacity 0.16s ease-out; }
-        #dashboardWrapper.is-animating { opacity: 0.35; }
-        @keyframes rowFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-row { animation: rowFadeIn 0.35s ease forwards; opacity: 0; }
+        #dashboardWrapper { opacity: 1; transform: translateY(0); transition: opacity 0.25s ease-in-out, transform 0.25s ease-in-out; }
+        #dashboardWrapper.is-animating { opacity: 0; transform: translateY(10px); }
+        @keyframes rowFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-row { animation: rowFadeIn 0.45s ease forwards; opacity: 0; }
 
         /* Accordion & Tabel Drill-Down MoM */
         .mom-accordion-grid {
             display: grid;
             grid-template-rows: 0fr;
-            transition: grid-template-rows 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+            transition: grid-template-rows 0.35s cubic-bezier(0.22, 1, 0.36, 1);
         }
         .mom-accordion-grid.is-open {
             grid-template-rows: 1fr;
@@ -974,7 +947,7 @@
 <body class="p-3 sm:p-6 text-slate-800">
 
     <!-- LOADING OVERLAY UTAMA -->
-    <div id="loadingOverlay" class="fixed inset-0 bg-white/95 z-50 flex flex-col items-center justify-start pt-16 sm:pt-20 transition-opacity duration-200">
+    <div id="loadingOverlay" class="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-start pt-16 sm:pt-20 transition-opacity duration-300">
         <div class="bg-white px-6 py-4 rounded-2xl shadow-xl flex items-center gap-4 border border-slate-100">
             <div class="w-6 h-6 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
             <div>
@@ -1261,12 +1234,13 @@
                     </div>
                 </div>
                 <div class="w-full bg-slate-100 rounded-full h-5 overflow-hidden border border-slate-200">
-                    <div id="progBarFill" class="bg-rose-500 h-5 rounded-full transition-all duration-700 ease-out" style="width: 0%"></div>
+                    <div id="progBarFill" class="bg-rose-500 h-5 rounded-full transition-all duration-1000 ease-out" style="width: 0%"></div>
                 </div>
             </div>
 
             <!-- SUMMARY CARD MoM + DRILL-DOWN REGION / KP -->
             <div id="momSummaryCard" class="hidden bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 text-white rounded-2xl shadow-md border border-slate-700/70 overflow-hidden transition-all">
+                <!-- Header Kartu (Klik untuk Buka/Tutup Rincian) -->
                 <div onclick="toggleMomDrilldown()" role="button" tabindex="0" aria-expanded="false" id="momSummaryHeader"
                      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleMomDrilldown();}"
                      class="p-4 sm:p-5 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 cursor-pointer select-none hover:bg-white/[0.03] transition-colors">
@@ -1301,6 +1275,7 @@
                             </div>
                         </div>
 
+                        <!-- Tombol Icon Panah Ke Bawah -->
                         <button type="button" aria-label="Tampilkan rincian perbandingan"
                                 class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center flex-shrink-0 transition-all">
                             <svg id="momChevronIcon" class="w-5 h-5 text-slate-200 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4">
@@ -1332,11 +1307,14 @@
                                 <table class="w-full text-left border-collapse min-w-[640px]">
                                     <thead>
                                         <tr id="momBreakdownHead" class="bg-slate-800/90 border-b border-slate-700 text-[11px] uppercase tracking-wider text-slate-300">
+                                            <!-- Diisi dinamis oleh JS -->
                                         </tr>
                                     </thead>
                                     <tbody id="momBreakdownBody" class="divide-y divide-slate-800/90 text-xs sm:text-sm">
+                                        <!-- Diisi dinamis oleh JS -->
                                     </tbody>
                                     <tfoot id="momBreakdownFoot" class="bg-slate-800/95 border-t-2 border-slate-600 text-xs sm:text-sm font-bold">
+                                        <!-- Grand Total diisi dinamis oleh JS -->
                                     </tfoot>
                                 </table>
                             </div>
@@ -1421,7 +1399,7 @@
         ];
 
         /* ==========================================================
-            HELPER UMUM & SINGLE-LOOP ANIMATION ENGINE
+            HELPER UMUM & ENGINE ANIMASI ANGKA BERGERAK
         ========================================================== */
         function escapeHtml(v) {
             return String(v == null ? '' : v)
@@ -1478,143 +1456,194 @@
             return '0';
         }
 
-        window.AnimEngine = (() => {
-            const tasks = new Map();
-            let rafId = null;
+        // Animasi angka standar (Rupiah atau Bulat + akhiran teks) dari nilai terakhir ke nilai baru
+        const animateCounter = (elOrId, endValue, isCurrency, customTextAfter = "", fromZero = false) => {
+            const obj = resolveEl(elOrId);
+            if (!obj) return;
+            endValue = Math.round(Number(endValue) || 0);
+            const suffix = customTextAfter ? " " + customTextAfter : "";
+            const fmt = (n) => (isCurrency ? formatRupiah(n) : n.toLocaleString('id-ID')) + suffix;
 
-            function formatValue(task, p) {
-                const ease = p === 1 ? 1 : 1 - Math.pow(1 - p, 4);
-                if (task.kind === 'combo') {
-                    const d = p === 1 ? task.endDiff : Math.round(task.startDiff + (task.endDiff - task.startDiff) * ease);
-                    const pct = p === 1 ? task.endPct : task.startPct + (task.endPct - task.startPct) * ease;
-                    const dStr = task.isCurrency ? formatSignedCurrency(d) : formatSignedInt(d);
-                    return `${dStr} (${pct.toFixed(1)}%)`;
-                }
-                if (task.kind === 'pct') {
-                    const v = p === 1 ? task.end : task.start + (task.end - task.start) * ease;
-                    const sign = task.showSign ? (v >= 0 ? '+' : '-') : (v < 0 ? '-' : '');
-                    return `${task.prefix}${sign}${Math.abs(v).toFixed(task.decimals)}${task.suffix}`;
-                }
-                const cur = p === 1 ? task.end : Math.round(task.start + (task.end - task.start) * ease);
-                const base = task.kind === 'rp' ? formatRupiah(cur)
-                           : task.kind === 'signed-rp' ? formatSignedCurrency(cur)
-                           : task.kind === 'signed-int' ? formatSignedInt(cur)
-                           : cur.toLocaleString('id-ID');
-                return base + task.suffix;
+            if (prefersReducedMotion()) {
+                obj._currentVal = endValue;
+                obj.innerText = fmt(endValue);
+                return;
             }
 
-            function step(now) {
-                for (const [el, task] of tasks.entries()) {
-                    if (!el.isConnected) { tasks.delete(el); continue; }
-                    if (!task.t0) task.t0 = now;
-                    const p = Math.min((now - task.t0) / task.dur, 1);
-                    el.textContent = formatValue(task, p);
-                    if (p >= 1) {
-                        el._currentVal = task.end;
-                        el._currentPct = task.endPct ?? task.end;
-                        el._currentDiff = task.endDiff;
-                        tasks.delete(el);
-                    }
-                }
-                rafId = tasks.size > 0 ? requestAnimationFrame(step) : null;
+            const startValue = fromZero ? 0 : (typeof obj._currentVal === 'number' ? obj._currentVal : 0);
+            if (startValue === endValue) {
+                obj._currentVal = endValue;
+                obj.innerText = fmt(endValue);
+                return;
             }
 
-            function enqueue(elOrId, task) {
-                const el = resolveEl(elOrId);
-                if (!el) return;
-                if (prefersReducedMotion()) {
-                    el.textContent = formatValue(task, 1);
-                    el._currentVal = task.end;
-                    el._currentPct = task.endPct ?? task.end;
-                    el._currentDiff = task.endDiff;
-                    tasks.delete(el);
-                    return;
-                }
-                tasks.set(el, task);
-                if (!rafId) rafId = requestAnimationFrame(step);
-            }
+            const token = (obj._animToken = (obj._animToken || 0) + 1);
+            let startTimestamp = null;
+            const duration = 900;
 
-            return {
-                to(elOrId, endValue, kind = 'int', suffixText = '', fromZero = false) {
-                    const el = resolveEl(elOrId);
-                    if (!el) return;
-                    const end = Math.round(Number(endValue) || 0);
-                    const start = fromZero ? 0 : (typeof el._currentVal === 'number' ? el._currentVal : 0);
-                    const suffix = suffixText ? ' ' + suffixText : '';
-                    if (start === end) {
-                        el._currentVal = end;
-                        el.textContent = formatValue({ kind, end, suffix }, 1);
-                        tasks.delete(el);
-                        return;
-                    }
-                    enqueue(el, { kind, start, end, suffix, dur: 650, t0: 0 });
-                },
-                pct(elOrId, endPct, opts = {}) {
-                    const el = resolveEl(elOrId);
-                    if (!el) return;
-                    const end = Number(endPct) || 0;
-                    const { prefix = '', suffix = '%', showSign = false, decimals = 1, fromZero = false } = opts;
-                    const start = fromZero ? 0 : (typeof el._currentPct === 'number' ? el._currentPct : 0);
-                    if (Math.abs(start - end) < 0.01) {
-                        el._currentPct = end;
-                        el.textContent = formatValue({ kind: 'pct', end, prefix, suffix, showSign, decimals }, 1);
-                        tasks.delete(el);
-                        return;
-                    }
-                    enqueue(el, { kind: 'pct', start, end, prefix, suffix, showSign, decimals, dur: 650, t0: 0 });
-                },
-                combo(elOrId, endDiff, endPct, isCurrency, fromZero = false) {
-                    const el = resolveEl(elOrId);
-                    if (!el) return;
-                    const targetDiff = Math.round(Number(endDiff) || 0);
-                    const targetPct = Number(endPct) || 0;
-                    const startDiff = fromZero ? 0 : (typeof el._currentDiff === 'number' ? el._currentDiff : 0);
-                    const startPct = fromZero ? 0 : (typeof el._currentPct === 'number' ? el._currentPct : 0);
-                    if (startDiff === targetDiff && Math.abs(startPct - targetPct) < 0.01) {
-                        el._currentDiff = targetDiff;
-                        el._currentPct = targetPct;
-                        el.textContent = formatValue({ kind: 'combo', endDiff: targetDiff, endPct: targetPct, isCurrency }, 1);
-                        tasks.delete(el);
-                        return;
-                    }
-                    enqueue(el, { kind: 'combo', startDiff, endDiff: targetDiff, startPct, endPct: targetPct, isCurrency, dur: 650, t0: 0 });
-                }
+            const step = (timestamp) => {
+                if (obj._animToken !== token) return;
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                const easeProgress = progress === 1 ? 1 : 1 - Math.pow(1 - progress, 4);
+                const current = progress === 1
+                    ? endValue
+                    : Math.round(startValue + (endValue - startValue) * easeProgress);
+                obj._currentVal = current;
+                obj.innerText = fmt(current);
+                if (progress < 1) window.requestAnimationFrame(step);
             };
-        })();
+            window.requestAnimationFrame(step);
+        };
 
-        const animateCounter = (el, val, isCurr, txt = "", fromZero = false) =>
-            AnimEngine.to(el, val, isCurr ? 'rp' : 'int', txt, fromZero);
+        // Animasi angka bertanda (+/- Rp atau +/- angka bulat)
+        const animateSignedCounter = (elOrId, endValue, isCurrency, customTextAfter = "", fromZero = false) => {
+            const obj = resolveEl(elOrId);
+            if (!obj) return;
+            endValue = Math.round(Number(endValue) || 0);
+            const suffix = customTextAfter ? " " + customTextAfter : "";
+            const fmt = (n) => (isCurrency ? formatSignedCurrency(n) : formatSignedInt(n)) + suffix;
 
-        const animateSignedCounter = (el, val, isCurr, txt = "", fromZero = false) =>
-            AnimEngine.to(el, val, isCurr ? 'signed-rp' : 'signed-int', txt, fromZero);
+            if (prefersReducedMotion()) {
+                obj._currentVal = endValue;
+                obj.innerText = fmt(endValue);
+                return;
+            }
 
-        const animatePercentCounter = (el, pct, opts = {}) =>
-            AnimEngine.pct(el, pct, opts);
+            const startValue = fromZero ? 0 : (typeof obj._currentVal === 'number' ? obj._currentVal : 0);
+            if (startValue === endValue) {
+                obj._currentVal = endValue;
+                obj.innerText = fmt(endValue);
+                return;
+            }
 
-        const animateDiffWithPercent = (el, diff, pct, isCurr, fromZero = false) =>
-            AnimEngine.combo(el, diff, pct, isCurr, fromZero);
+            const token = (obj._animToken = (obj._animToken || 0) + 1);
+            let startTimestamp = null;
+            const duration = 900;
 
+            const step = (timestamp) => {
+                if (obj._animToken !== token) return;
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                const easeProgress = progress === 1 ? 1 : 1 - Math.pow(1 - progress, 4);
+                const current = progress === 1
+                    ? endValue
+                    : Math.round(startValue + (endValue - startValue) * easeProgress);
+                obj._currentVal = current;
+                obj.innerText = fmt(current);
+                if (progress < 1) window.requestAnimationFrame(step);
+            };
+            window.requestAnimationFrame(step);
+        };
+
+        // Animasi angka persentase (misal 85.2%, +6.2%, ▲ 5.1%)
+        const animatePercentCounter = (elOrId, endPct, opts = {}) => {
+            const obj = resolveEl(elOrId);
+            if (!obj) return;
+            const target = Number(endPct) || 0;
+            const { prefix = '', suffix = '%', showSign = false, decimals = 1, fromZero = false } = opts;
+
+            const fmt = (v) => {
+                const sign = showSign ? (v >= 0 ? '+' : '-') : (v < 0 ? '-' : '');
+                const absVal = Math.abs(v).toFixed(decimals);
+                return `${prefix}${sign}${absVal}${suffix}`;
+            };
+
+            if (prefersReducedMotion()) {
+                obj._currentPct = target;
+                obj.innerText = fmt(target);
+                return;
+            }
+
+            const startValue = fromZero ? 0 : (typeof obj._currentPct === 'number' ? obj._currentPct : 0);
+            if (Math.abs(startValue - target) < 0.01) {
+                obj._currentPct = target;
+                obj.innerText = fmt(target);
+                return;
+            }
+
+            const token = (obj._animPctToken = (obj._animPctToken || 0) + 1);
+            let startTimestamp = null;
+            const duration = 900;
+
+            const step = (timestamp) => {
+                if (obj._animPctToken !== token) return;
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                const easeProgress = progress === 1 ? 1 : 1 - Math.pow(1 - progress, 4);
+                const current = progress === 1
+                    ? target
+                    : startValue + (target - startValue) * easeProgress;
+                obj._currentPct = current;
+                obj.innerText = fmt(current);
+                if (progress < 1) window.requestAnimationFrame(step);
+            };
+            window.requestAnimationFrame(step);
+        };
+
+        // Animasi gabungan selisih + persentase pada kartu MoM atas (misal +Rp 884.497.837 (6.1%))
+        const animateDiffWithPercent = (elOrId, endDiff, endPct, isCurrency, fromZero = false) => {
+            const obj = resolveEl(elOrId);
+            if (!obj) return;
+            const targetDiff = Math.round(Number(endDiff) || 0);
+            const targetPct = Number(endPct) || 0;
+
+            const fmt = (d, p) => {
+                const diffStr = isCurrency ? formatSignedCurrency(d) : formatSignedInt(d);
+                return `${diffStr} (${p.toFixed(1)}%)`;
+            };
+
+            if (prefersReducedMotion()) {
+                obj._currentDiff = targetDiff;
+                obj._currentPct = targetPct;
+                obj.innerText = fmt(targetDiff, targetPct);
+                return;
+            }
+
+            const startDiff = fromZero ? 0 : (typeof obj._currentDiff === 'number' ? obj._currentDiff : 0);
+            const startPct = fromZero ? 0 : (typeof obj._currentPct === 'number' ? obj._currentPct : 0);
+
+            if (startDiff === targetDiff && Math.abs(startPct - targetPct) < 0.01) {
+                obj._currentDiff = targetDiff;
+                obj._currentPct = targetPct;
+                obj.innerText = fmt(targetDiff, targetPct);
+                return;
+            }
+
+            const token = (obj._animComboToken = (obj._animComboToken || 0) + 1);
+            let startTimestamp = null;
+            const duration = 950;
+
+            const step = (timestamp) => {
+                if (obj._animComboToken !== token) return;
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                const easeProgress = progress === 1 ? 1 : 1 - Math.pow(1 - progress, 4);
+                const curDiff = progress === 1 ? targetDiff : Math.round(startDiff + (targetDiff - startDiff) * easeProgress);
+                const curPct = progress === 1 ? targetPct : startPct + (targetPct - startPct) * easeProgress;
+                obj._currentDiff = curDiff;
+                obj._currentPct = curPct;
+                obj.innerText = fmt(curDiff, curPct);
+                if (progress < 1) window.requestAnimationFrame(step);
+            };
+            window.requestAnimationFrame(step);
+        };
+
+        // Jalankan animasi seluruh angka di dalam tabel Drill-Down MoM
         function animateMomTableNumbers(fromZero = true) {
-            const foot = document.getElementById('momBreakdownFoot');
-            const body = document.getElementById('momBreakdownBody');
-            if (body) {
-                body.querySelectorAll('[data-anim-type]').forEach(el => {
-                    const type = el.dataset.animType;
-                    const target = Number(el.dataset.target || 0);
-                    if (type === 'rp') el.textContent = formatRupiah(target);
-                    else if (type === 'signed-rp') el.textContent = formatSignedCurrency(target);
-                    else if (type === 'signed-pct') el.textContent = `${target >= 0 ? '+' : '-'}${Math.abs(target).toFixed(1)}%`;
-                });
-            }
-            if (foot) {
-                foot.querySelectorAll('[data-anim-type]').forEach(el => {
-                    const type = el.dataset.animType;
-                    const target = Number(el.dataset.target || 0);
-                    if (type === 'rp') animateCounter(el, target, true, '', fromZero);
-                    else if (type === 'signed-rp') animateSignedCounter(el, target, true, '', fromZero);
-                    else if (type === 'signed-pct') animatePercentCounter(el, target, { showSign: true, suffix: '%', decimals: 1, fromZero });
-                });
-            }
+            const panel = document.getElementById('momDrilldownPanel');
+            if (!panel) return;
+            panel.querySelectorAll('[data-anim-type]').forEach(el => {
+                const type = el.dataset.animType;
+                const target = Number(el.dataset.target || 0);
+                if (type === 'rp') {
+                    animateCounter(el, target, true, '', fromZero);
+                } else if (type === 'signed-rp') {
+                    animateSignedCounter(el, target, true, '', fromZero);
+                } else if (type === 'signed-pct') {
+                    animatePercentCounter(el, target, { showSign: true, suffix: '%', decimals: 1, fromZero });
+                }
+            });
         }
 
         const fixTimezone = (value) => {
@@ -1669,7 +1698,7 @@
                 setTimeout(() => {
                     overlay.classList.add('hidden');
                     overlay.style.opacity = '1'; 
-                }, 200); 
+                }, 300); 
             }
         }
 
@@ -1738,7 +1767,7 @@
                         wrapper.classList.remove('is-animating');
                     });
                 }
-            }, 150);
+            }, 250);
         }
 
         /* ==========================================================
@@ -2150,6 +2179,7 @@
             if (chevron) chevron.style.transform = isMomExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
             if (header) header.setAttribute('aria-expanded', String(isMomExpanded));
 
+            // Saat panel dibuka, jalankan animasi angka dari 0 pada seluruh baris tabel
             if (isMomExpanded) {
                 animateMomTableNumbers(true);
             }
@@ -2292,13 +2322,13 @@
                             ${isRegionLevel ? '<span class="text-[11px] text-slate-500 group-hover:text-indigo-400 transition-colors">›</span>' : ''}
                         </div>
                     </td>
-                    <td data-anim-type="rp" data-target="${item.prevRp}" class="py-2.5 px-4 text-right text-slate-300 tabular-nums whitespace-nowrap">${formatRupiah(item.prevRp)}</td>
-                    <td data-anim-type="rp" data-target="${item.currRp}" class="py-2.5 px-4 text-right font-semibold text-white tabular-nums whitespace-nowrap">${formatRupiah(item.currRp)}</td>
+                    <td data-anim-type="rp" data-target="${item.prevRp}" class="py-2.5 px-4 text-right text-slate-300 tabular-nums whitespace-nowrap">${formatRupiah(0)}</td>
+                    <td data-anim-type="rp" data-target="${item.currRp}" class="py-2.5 px-4 text-right font-semibold text-white tabular-nums whitespace-nowrap">${formatRupiah(0)}</td>
                     <td class="py-2.5 px-4 text-right tabular-nums whitespace-nowrap">
                         <div class="inline-flex items-center justify-end gap-2">
-                            <span data-anim-type="signed-rp" data-target="${item.diffRp}" class="font-bold ${diffColor}">${formatSignedCurrency(item.diffRp)}</span>
+                            <span data-anim-type="signed-rp" data-target="${item.diffRp}" class="font-bold ${diffColor}">${formatSignedCurrency(0)}</span>
                             <span data-anim-type="signed-pct" data-target="${item.pct.toFixed(2)}" class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${badgeBg}">
-                                ${item.pct >= 0 ? '+' : '-'}${Math.abs(item.pct).toFixed(1)}%
+                                +0.0%
                             </span>
                         </div>
                     </td>
@@ -2328,6 +2358,7 @@
                 </tr>
             `;
 
+            // Jalankan animasi angka pada seluruh baris & Grand Total
             animateMomTableNumbers(true);
         }
 
@@ -2508,6 +2539,7 @@
             const gSisaPlg = gTargetPlg - gLunasPlg;
             const pctCapaian = gTargetPlg > 0 ? (gLunasPlg / gTargetPlg) * 100 : 0;
 
+            // Animasi 3 Kartu Utama
             animateCounter('progTargetRp', gTargetRp, true);
             animateCounter('progTargetPlg', gTargetPlg, false, "Pelanggan Ditagih");
             animateCounter('progLunasRp', gLunasRp, true);
@@ -2515,6 +2547,7 @@
             animateCounter('progSisaRp', Math.max(0, gSisaRp), true);
             animateCounter('progSisaPlg', Math.max(0, gSisaPlg), false, "Pelanggan Tertunggak");
 
+            // Animasi Rincian Sisa Tagihan
             animateCounter('detAktif', gAktifPlg, false, 'Plg');
             animateCounter('detBatal', gBatalPlg, false, 'Plg');
             animateCounter('detDeaktif', gDeaktifPlg, false, 'Plg');
@@ -2524,9 +2557,10 @@
 
             document.getElementById('labelCapaianTeks').innerText = selectedRegion === 'ALL' ? 'Nasional' : 'Region ' + selectedRegion;
             
+            // Animasi Progress Bar & Persentase
             document.getElementById('progBarFill').style.width = Math.min(pctCapaian, 100).toFixed(1) + "%";
             const barColor = pctCapaian >= 100 ? 'bg-emerald-500' : 'bg-rose-500';
-            document.getElementById('progBarFill').className = `h-5 rounded-full transition-all duration-700 ease-out ${barColor}`;
+            document.getElementById('progBarFill').className = `h-5 rounded-full transition-all duration-1000 ease-out ${barColor}`;
             const textColor = pctCapaian >= 100 ? 'text-emerald-600' : 'text-rose-600';
             const progBarTextEl = document.getElementById('progBarText');
             progBarTextEl.className = `text-2xl font-black tabular-nums ${textColor}`;
@@ -2593,6 +2627,7 @@
 
                 document.getElementById('momSubTitle').innerText = subText;
 
+                // Animasi Angka Kartu Ringkasan MoM (Kanan Atas)
                 animateCounter('momPlgVal', prevTotals.totalPlg, false, 'Plg');
                 animateCounter('momRpVal', prevTotals.totalRp, true);
 
