@@ -21,9 +21,6 @@
   'use strict';
   const LAT = [-11.2, 6.2], LNG = [94.8, 141.2];
   const TIPE = { prepaid: 'Prabayar', postpaid: 'Pascabayar', all: 'Semua tagihan' };
-  const RP_FMT = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
-  const NUM_FMT = new Intl.NumberFormat('id-ID');
-
   const S = { root: null, map: null, layer: null, boundaryLayer: null, box: null, cfg: {}, data: [], progresData: [], ver: 0,
     f: { tipe: 'prepaid', periode: 'ALL', region: 'ALL' }, kp: 'ALL', kab: 'ALL', lastRankKp: null, mode: 'ringkasan',
     cache: {}, geoCache: {}, kabBounds: null, token: 0, abort: null, sig: '', fs: false, pts: [], timer: 0, hintT: 0, touch: false };
@@ -31,8 +28,8 @@
   const R = (n) => S.root.querySelector('[data-r="' + n + '"]');
   const esc = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  const num = (n) => NUM_FMT.format(Number(n || 0));
-  const rp = (n) => RP_FMT.format(Number(n || 0));
+  const num = (n) => Number(n || 0).toLocaleString('id-ID');
+  const rp = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n || 0);
   const up = (v) => String(v == null ? '' : v).trim().toUpperCase();
   const okXY = (a, b) => a >= LAT[0] && a <= LAT[1] && b >= LNG[0] && b <= LNG[1];
   const col = (n) => (n > 100 ? '#e11d48' : n >= 25 ? '#f97316' : '#fbbf24');
@@ -53,7 +50,7 @@
       return;
     }
     const tok = (el._animTok = (el._animTok || 0) + 1);
-    const dur = 750;
+    const dur = 850;
     let t0 = null;
     function tick(ts) {
       if (el._animTok !== tok) return;
@@ -399,12 +396,12 @@
   function kabRowsForSelectedKp() {
     const { tipe, periode, region } = S.f;
     return S.progresData.filter((r) => {
-      const t = r._tipeLower || String(r.Tipe_Layanan || '').trim().toLowerCase();
-      if (tipe === 'all' ? (t !== 'prepaid' && t !== 'postpaid') : t !== tipe) return false;
-      if (periode !== 'ALL' && (r._periodeTrim || String(r.Periode || '').trim()) !== String(periode).trim()) return false;
-      if (region !== 'ALL' && (r._regionUpper || up(r.Region)) !== up(region)) return false;
+      const t = up(r.Tipe_Layanan);
+      if (tipe === 'all' ? (t !== 'PREPAID' && t !== 'POSTPAID') : t !== up(tipe)) return false;
+      if (periode !== 'ALL' && String(r.Periode || '').trim() !== String(periode).trim()) return false;
+      if (region !== 'ALL' && up(r.Region) !== up(region)) return false;
       if (up(r.KP) !== up(S.kp)) return false;
-      const st = r._statusUpper || up(r.Status);
+      const st = up(r.Status);
       return st === 'BELUM BAYAR' || st === 'BELUM LUNAS';
     });
   }
@@ -912,11 +909,10 @@
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* Transisi ringan hanya pada opacity agar GPU tidak re-compositing layar penuh */
-        #dashboardWrapper { opacity: 1; transition: opacity 0.2s ease-out; }
-        #dashboardWrapper.is-animating { opacity: 0.35; }
-        @keyframes rowFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-row { animation: rowFadeIn 0.4s ease forwards; opacity: 0; }
+        #dashboardWrapper { opacity: 1; transform: translateY(0); transition: opacity 0.25s ease-in-out, transform 0.25s ease-in-out; }
+        #dashboardWrapper.is-animating { opacity: 0; transform: translateY(10px); }
+        @keyframes rowFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-row { animation: rowFadeIn 0.45s ease forwards; opacity: 0; }
 
         /* Accordion & Tabel Drill-Down MoM */
         .mom-accordion-grid {
@@ -1403,212 +1399,7 @@
         ];
 
         /* ==========================================================
-            CACHE FORMATTER & ENGINE TUNGGAL ANIMASI ANGKA (60 FPS)
-        ========================================================== */
-        const IDR_FORMATTER = new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        });
-        const COMPACT_FORMATTER = new Intl.NumberFormat('id-ID', {
-            notation: 'compact',
-            maximumFractionDigits: 1
-        });
-        const INT_FORMATTER = new Intl.NumberFormat('id-ID');
-
-        const formatRupiah = (angka) => IDR_FORMATTER.format(angka || 0);
-        const formatCompact = (v) => COMPACT_FORMATTER.format(v || 0);
-        const formatInt = (v) => INT_FORMATTER.format(Math.round(Number(v) || 0));
-
-        const prefersReducedMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        const resolveEl = (elOrId) => typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
-
-        function formatSignedCurrency(val) {
-            const rounded = Math.round(Number(val) || 0);
-            if (rounded > 0) return '+' + formatRupiah(rounded);
-            if (rounded < 0) return '-' + formatRupiah(Math.abs(rounded));
-            return formatRupiah(0);
-        }
-
-        function formatSignedInt(val) {
-            const rounded = Math.round(Number(val) || 0);
-            if (rounded > 0) return '+' + formatInt(rounded);
-            if (rounded < 0) return '-' + formatInt(Math.abs(rounded));
-            return '0';
-        }
-
-        const activeCounters = new Map();
-        let counterRafId = null;
-
-        function scheduleCounter(el, task) {
-            if (!el) return;
-            activeCounters.set(el, task);
-            if (!counterRafId) {
-                counterRafId = window.requestAnimationFrame(tickAllCounters);
-            }
-        }
-
-        function tickAllCounters(timestamp) {
-            counterRafId = null;
-            activeCounters.forEach((task, el) => {
-                if (!el.isConnected) {
-                    activeCounters.delete(el);
-                    return;
-                }
-                if (!task.t0) task.t0 = timestamp;
-                const progress = Math.min((timestamp - task.t0) / task.duration, 1);
-                const ease = progress === 1 ? 1 : 1 - Math.pow(1 - progress, 4);
-                task.render(progress, ease);
-                if (progress >= 1) activeCounters.delete(el);
-            });
-            if (activeCounters.size > 0) {
-                counterRafId = window.requestAnimationFrame(tickAllCounters);
-            }
-        }
-
-        const animateCounter = (elOrId, endValue, isCurrency, customTextAfter = "", fromZero = false) => {
-            const obj = resolveEl(elOrId);
-            if (!obj) return;
-            endValue = Math.round(Number(endValue) || 0);
-            const suffix = customTextAfter ? " " + customTextAfter : "";
-            const fmt = (n) => (isCurrency ? formatRupiah(n) : formatInt(n)) + suffix;
-
-            if (prefersReducedMotion()) {
-                obj._currentVal = endValue;
-                obj.textContent = fmt(endValue);
-                return;
-            }
-            const startValue = fromZero ? 0 : (typeof obj._currentVal === 'number' ? obj._currentVal : 0);
-            if (startValue === endValue) {
-                obj._currentVal = endValue;
-                obj.textContent = fmt(endValue);
-                return;
-            }
-            scheduleCounter(obj, {
-                t0: null,
-                duration: 750,
-                render(p, ease) {
-                    const cur = p === 1 ? endValue : Math.round(startValue + (endValue - startValue) * ease);
-                    obj._currentVal = cur;
-                    obj.textContent = fmt(cur);
-                }
-            });
-        };
-
-        const animateSignedCounter = (elOrId, endValue, isCurrency, customTextAfter = "", fromZero = false) => {
-            const obj = resolveEl(elOrId);
-            if (!obj) return;
-            endValue = Math.round(Number(endValue) || 0);
-            const suffix = customTextAfter ? " " + customTextAfter : "";
-            const fmt = (n) => (isCurrency ? formatSignedCurrency(n) : formatSignedInt(n)) + suffix;
-
-            if (prefersReducedMotion()) {
-                obj._currentVal = endValue;
-                obj.textContent = fmt(endValue);
-                return;
-            }
-            const startValue = fromZero ? 0 : (typeof obj._currentVal === 'number' ? obj._currentVal : 0);
-            if (startValue === endValue) {
-                obj._currentVal = endValue;
-                obj.textContent = fmt(endValue);
-                return;
-            }
-            scheduleCounter(obj, {
-                t0: null,
-                duration: 750,
-                render(p, ease) {
-                    const cur = p === 1 ? endValue : Math.round(startValue + (endValue - startValue) * ease);
-                    obj._currentVal = cur;
-                    obj.textContent = fmt(cur);
-                }
-            });
-        };
-
-        const animatePercentCounter = (elOrId, endPct, opts = {}) => {
-            const obj = resolveEl(elOrId);
-            if (!obj) return;
-            const target = Number(endPct) || 0;
-            const { prefix = '', suffix = '%', showSign = false, decimals = 1, fromZero = false } = opts;
-            const fmt = (v) => {
-                const sign = showSign ? (v >= 0 ? '+' : '-') : (v < 0 ? '-' : '');
-                return `${prefix}${sign}${Math.abs(v).toFixed(decimals)}${suffix}`;
-            };
-
-            if (prefersReducedMotion()) {
-                obj._currentPct = target;
-                obj.textContent = fmt(target);
-                return;
-            }
-            const startValue = fromZero ? 0 : (typeof obj._currentPct === 'number' ? obj._currentPct : 0);
-            if (Math.abs(startValue - target) < 0.01) {
-                obj._currentPct = target;
-                obj.textContent = fmt(target);
-                return;
-            }
-            scheduleCounter(obj, {
-                t0: null,
-                duration: 750,
-                render(p, ease) {
-                    const cur = p === 1 ? target : startValue + (target - startValue) * ease;
-                    obj._currentPct = cur;
-                    obj.textContent = fmt(cur);
-                }
-            });
-        };
-
-        const animateDiffWithPercent = (elOrId, endDiff, endPct, isCurrency, fromZero = false) => {
-            const obj = resolveEl(elOrId);
-            if (!obj) return;
-            const targetDiff = Math.round(Number(endDiff) || 0);
-            const targetPct = Number(endPct) || 0;
-            const fmt = (d, p) => `${isCurrency ? formatSignedCurrency(d) : formatSignedInt(d)} (${p.toFixed(1)}%)`;
-
-            if (prefersReducedMotion()) {
-                obj._currentDiff = targetDiff;
-                obj._currentPct = targetPct;
-                obj.textContent = fmt(targetDiff, targetPct);
-                return;
-            }
-            const startDiff = fromZero ? 0 : (typeof obj._currentDiff === 'number' ? obj._currentDiff : 0);
-            const startPct = fromZero ? 0 : (typeof obj._currentPct === 'number' ? obj._currentPct : 0);
-            if (startDiff === targetDiff && Math.abs(startPct - targetPct) < 0.01) {
-                obj._currentDiff = targetDiff;
-                obj._currentPct = targetPct;
-                obj.textContent = fmt(targetDiff, targetPct);
-                return;
-            }
-            scheduleCounter(obj, {
-                t0: null,
-                duration: 800,
-                render(p, ease) {
-                    const curDiff = p === 1 ? targetDiff : Math.round(startDiff + (targetDiff - startDiff) * ease);
-                    const curPct = p === 1 ? targetPct : startPct + (targetPct - startPct) * ease;
-                    obj._currentDiff = curDiff;
-                    obj._currentPct = curPct;
-                    obj.textContent = fmt(curDiff, curPct);
-                }
-            });
-        };
-
-        function animateMomTableNumbers(fromZero = true) {
-            const panel = document.getElementById('momDrilldownPanel');
-            if (!panel) return;
-            panel.querySelectorAll('[data-anim-type]').forEach(el => {
-                const type = el.dataset.animType;
-                const target = Number(el.dataset.target || 0);
-                if (type === 'rp') {
-                    animateCounter(el, target, true, '', fromZero);
-                } else if (type === 'signed-rp') {
-                    animateSignedCounter(el, target, true, '', fromZero);
-                } else if (type === 'signed-pct') {
-                    animatePercentCounter(el, target, { showSign: true, suffix: '%', decimals: 1, fromZero });
-                }
-            });
-        }
-
-        /* ==========================================================
-            HELPER TANGGAL & PARSING
+            HELPER UMUM & ENGINE ANIMASI ANGKA BERGERAK
         ========================================================== */
         function escapeHtml(v) {
             return String(v == null ? '' : v)
@@ -1627,10 +1418,8 @@
         }
 
         function getPeriodFromDate(dateStr) {
-            const m = /^(\d{4})-(\d{2})-\d{2}/.exec(String(dateStr || ''));
-            if (!m) return "";
-            const monthIdx = Number(m[2]) - 1;
-            return (monthIdx >= 0 && monthIdx < 12) ? `${bulanNames[monthIdx]} ${m[1]}` : "";
+            const d = parseYMD(dateStr);
+            return d ? `${bulanNames[d.getMonth()]} ${d.getFullYear()}` : "";
         }
 
         function parsePeriodeToDate(periodeStr) {
@@ -1642,6 +1431,219 @@
                 return new Date(tahun, bulan - 1, 1);
             }
             return new Date(0);
+        }
+
+        const formatRupiah = (angka) => {
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(angka || 0);
+        };
+
+        const formatCompact = (v) => new Intl.NumberFormat('id-ID', { notation: 'compact', maximumFractionDigits: 1 }).format(v || 0);
+
+        const prefersReducedMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const resolveEl = (elOrId) => typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
+
+        function formatSignedCurrency(val) {
+            const rounded = Math.round(Number(val) || 0);
+            if (rounded > 0) return '+' + formatRupiah(rounded);
+            if (rounded < 0) return '-' + formatRupiah(Math.abs(rounded));
+            return formatRupiah(0);
+        }
+
+        function formatSignedInt(val) {
+            const rounded = Math.round(Number(val) || 0);
+            if (rounded > 0) return '+' + rounded.toLocaleString('id-ID');
+            if (rounded < 0) return '-' + Math.abs(rounded).toLocaleString('id-ID');
+            return '0';
+        }
+
+        // Animasi angka standar (Rupiah atau Bulat + akhiran teks) dari nilai terakhir ke nilai baru
+        const animateCounter = (elOrId, endValue, isCurrency, customTextAfter = "", fromZero = false) => {
+            const obj = resolveEl(elOrId);
+            if (!obj) return;
+            endValue = Math.round(Number(endValue) || 0);
+            const suffix = customTextAfter ? " " + customTextAfter : "";
+            const fmt = (n) => (isCurrency ? formatRupiah(n) : n.toLocaleString('id-ID')) + suffix;
+
+            if (prefersReducedMotion()) {
+                obj._currentVal = endValue;
+                obj.innerText = fmt(endValue);
+                return;
+            }
+
+            const startValue = fromZero ? 0 : (typeof obj._currentVal === 'number' ? obj._currentVal : 0);
+            if (startValue === endValue) {
+                obj._currentVal = endValue;
+                obj.innerText = fmt(endValue);
+                return;
+            }
+
+            const token = (obj._animToken = (obj._animToken || 0) + 1);
+            let startTimestamp = null;
+            const duration = 900;
+
+            const step = (timestamp) => {
+                if (obj._animToken !== token) return;
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                const easeProgress = progress === 1 ? 1 : 1 - Math.pow(1 - progress, 4);
+                const current = progress === 1
+                    ? endValue
+                    : Math.round(startValue + (endValue - startValue) * easeProgress);
+                obj._currentVal = current;
+                obj.innerText = fmt(current);
+                if (progress < 1) window.requestAnimationFrame(step);
+            };
+            window.requestAnimationFrame(step);
+        };
+
+        // Animasi angka bertanda (+/- Rp atau +/- angka bulat)
+        const animateSignedCounter = (elOrId, endValue, isCurrency, customTextAfter = "", fromZero = false) => {
+            const obj = resolveEl(elOrId);
+            if (!obj) return;
+            endValue = Math.round(Number(endValue) || 0);
+            const suffix = customTextAfter ? " " + customTextAfter : "";
+            const fmt = (n) => (isCurrency ? formatSignedCurrency(n) : formatSignedInt(n)) + suffix;
+
+            if (prefersReducedMotion()) {
+                obj._currentVal = endValue;
+                obj.innerText = fmt(endValue);
+                return;
+            }
+
+            const startValue = fromZero ? 0 : (typeof obj._currentVal === 'number' ? obj._currentVal : 0);
+            if (startValue === endValue) {
+                obj._currentVal = endValue;
+                obj.innerText = fmt(endValue);
+                return;
+            }
+
+            const token = (obj._animToken = (obj._animToken || 0) + 1);
+            let startTimestamp = null;
+            const duration = 900;
+
+            const step = (timestamp) => {
+                if (obj._animToken !== token) return;
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                const easeProgress = progress === 1 ? 1 : 1 - Math.pow(1 - progress, 4);
+                const current = progress === 1
+                    ? endValue
+                    : Math.round(startValue + (endValue - startValue) * easeProgress);
+                obj._currentVal = current;
+                obj.innerText = fmt(current);
+                if (progress < 1) window.requestAnimationFrame(step);
+            };
+            window.requestAnimationFrame(step);
+        };
+
+        // Animasi angka persentase (misal 85.2%, +6.2%, ▲ 5.1%)
+        const animatePercentCounter = (elOrId, endPct, opts = {}) => {
+            const obj = resolveEl(elOrId);
+            if (!obj) return;
+            const target = Number(endPct) || 0;
+            const { prefix = '', suffix = '%', showSign = false, decimals = 1, fromZero = false } = opts;
+
+            const fmt = (v) => {
+                const sign = showSign ? (v >= 0 ? '+' : '-') : (v < 0 ? '-' : '');
+                const absVal = Math.abs(v).toFixed(decimals);
+                return `${prefix}${sign}${absVal}${suffix}`;
+            };
+
+            if (prefersReducedMotion()) {
+                obj._currentPct = target;
+                obj.innerText = fmt(target);
+                return;
+            }
+
+            const startValue = fromZero ? 0 : (typeof obj._currentPct === 'number' ? obj._currentPct : 0);
+            if (Math.abs(startValue - target) < 0.01) {
+                obj._currentPct = target;
+                obj.innerText = fmt(target);
+                return;
+            }
+
+            const token = (obj._animPctToken = (obj._animPctToken || 0) + 1);
+            let startTimestamp = null;
+            const duration = 900;
+
+            const step = (timestamp) => {
+                if (obj._animPctToken !== token) return;
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                const easeProgress = progress === 1 ? 1 : 1 - Math.pow(1 - progress, 4);
+                const current = progress === 1
+                    ? target
+                    : startValue + (target - startValue) * easeProgress;
+                obj._currentPct = current;
+                obj.innerText = fmt(current);
+                if (progress < 1) window.requestAnimationFrame(step);
+            };
+            window.requestAnimationFrame(step);
+        };
+
+        // Animasi gabungan selisih + persentase pada kartu MoM atas (misal +Rp 884.497.837 (6.1%))
+        const animateDiffWithPercent = (elOrId, endDiff, endPct, isCurrency, fromZero = false) => {
+            const obj = resolveEl(elOrId);
+            if (!obj) return;
+            const targetDiff = Math.round(Number(endDiff) || 0);
+            const targetPct = Number(endPct) || 0;
+
+            const fmt = (d, p) => {
+                const diffStr = isCurrency ? formatSignedCurrency(d) : formatSignedInt(d);
+                return `${diffStr} (${p.toFixed(1)}%)`;
+            };
+
+            if (prefersReducedMotion()) {
+                obj._currentDiff = targetDiff;
+                obj._currentPct = targetPct;
+                obj.innerText = fmt(targetDiff, targetPct);
+                return;
+            }
+
+            const startDiff = fromZero ? 0 : (typeof obj._currentDiff === 'number' ? obj._currentDiff : 0);
+            const startPct = fromZero ? 0 : (typeof obj._currentPct === 'number' ? obj._currentPct : 0);
+
+            if (startDiff === targetDiff && Math.abs(startPct - targetPct) < 0.01) {
+                obj._currentDiff = targetDiff;
+                obj._currentPct = targetPct;
+                obj.innerText = fmt(targetDiff, targetPct);
+                return;
+            }
+
+            const token = (obj._animComboToken = (obj._animComboToken || 0) + 1);
+            let startTimestamp = null;
+            const duration = 950;
+
+            const step = (timestamp) => {
+                if (obj._animComboToken !== token) return;
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                const easeProgress = progress === 1 ? 1 : 1 - Math.pow(1 - progress, 4);
+                const curDiff = progress === 1 ? targetDiff : Math.round(startDiff + (targetDiff - startDiff) * easeProgress);
+                const curPct = progress === 1 ? targetPct : startPct + (targetPct - startPct) * easeProgress;
+                obj._currentDiff = curDiff;
+                obj._currentPct = curPct;
+                obj.innerText = fmt(curDiff, curPct);
+                if (progress < 1) window.requestAnimationFrame(step);
+            };
+            window.requestAnimationFrame(step);
+        };
+
+        // Jalankan animasi seluruh angka di dalam tabel Drill-Down MoM
+        function animateMomTableNumbers(fromZero = true) {
+            const panel = document.getElementById('momDrilldownPanel');
+            if (!panel) return;
+            panel.querySelectorAll('[data-anim-type]').forEach(el => {
+                const type = el.dataset.animType;
+                const target = Number(el.dataset.target || 0);
+                if (type === 'rp') {
+                    animateCounter(el, target, true, '', fromZero);
+                } else if (type === 'signed-rp') {
+                    animateSignedCounter(el, target, true, '', fromZero);
+                } else if (type === 'signed-pct') {
+                    animatePercentCounter(el, target, { showSign: true, suffix: '%', decimals: 1, fromZero });
+                }
+            });
         }
 
         const fixTimezone = (value) => {
@@ -1680,7 +1682,7 @@
         }
 
         /* ==========================================================
-            AMBIL DATA DARI SERVER & PRE-INDEXING
+            AMBIL DATA DARI SERVER & WAKTU UPDATE
         ========================================================== */
         function showLoading(title, text) {
             const overlay = document.getElementById('loadingOverlay');
@@ -1717,28 +1719,9 @@
             const res = await response.json();
             if (res.error) throw new Error(res.error);
 
-            allData.sla3 = parseMatrixToObjects(res.sla3).map(row => {
-                row['Tanggal'] = fixTimezone(row['Tanggal']);
-                row._periode = getPeriodFromDate(row['Tanggal']);
-                row._regionUpper = String(row['Region'] || '').trim().toUpperCase();
-                row._fuLower = String(row['Type FU'] || '').toLowerCase();
-                return row;
-            });
-            allData.sla4 = parseMatrixToObjects(res.sla4).map(row => {
-                row['Tanggal'] = fixTimezone(row['Tanggal']);
-                row._periode = getPeriodFromDate(row['Tanggal']);
-                row._regionUpper = String(row['Region'] || '').trim().toUpperCase();
-                row._fuLower = String(row['Type FU'] || '').toLowerCase();
-                return row;
-            });
-            allData.progres = parseMatrixToObjects(res.progres).map(row => {
-                row['Tanggal_Bayar_Saja'] = fixTimezone(row['Tanggal_Bayar_Saja']);
-                row._regionUpper = String(row['Region'] || '').trim().toUpperCase();
-                row._statusUpper = String(row['Status'] || '').trim().toUpperCase();
-                row._tipeLower = String(row['Tipe_Layanan'] || '').trim().toLowerCase();
-                row._periodeTrim = String(row['Periode'] || '').trim();
-                return row;
-            });
+            allData.sla3 = parseMatrixToObjects(res.sla3).map(row => { row['Tanggal'] = fixTimezone(row['Tanggal']); return row; });
+            allData.sla4 = parseMatrixToObjects(res.sla4).map(row => { row['Tanggal'] = fixTimezone(row['Tanggal']); return row; });
+            allData.progres = parseMatrixToObjects(res.progres).map(row => { row['Tanggal_Bayar_Saja'] = fixTimezone(row['Tanggal_Bayar_Saja']); return row; });
             allData.petaRingkasan = parseMatrixToObjects(res.petaRingkasan || []);
             if (forceRefresh) ProgresMap.clearCache();
             ProgresMap.setData(allData.petaRingkasan);
@@ -1781,12 +1764,10 @@
                     actionCallback();
                 } finally {
                     requestAnimationFrame(() => {
-                        requestAnimationFrame(() => {
-                            wrapper.classList.remove('is-animating');
-                        });
+                        wrapper.classList.remove('is-animating');
                     });
                 }
-            }, 140);
+            }, 250);
         }
 
         /* ==========================================================
@@ -1811,7 +1792,7 @@
 
                     const periodSelect = document.getElementById('filterPeriodeSla');
                     periodSelect.innerHTML = '<option value="ALL">Semua Periode</option>';
-                    const periods = [...new Set(rawData.map(row => row._periode).filter(Boolean))];
+                    const periods = [...new Set(rawData.map(row => getPeriodFromDate(row['Tanggal'])).filter(Boolean))];
                     periods.sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
                     periods.forEach(p => { const opt = document.createElement('option'); opt.value = p; opt.innerText = p; periodSelect.appendChild(opt); });
                     periodSelect.value = 'ALL';
@@ -1853,7 +1834,10 @@
             if (isNaN(bulanIdx) || isNaN(tahun)) return;
 
             const startStr = toYMD(new Date(tahun, bulanIdx, 1));
-            const datesInMonth = rawData.filter(r => r._periode === selectedPeriod).map(r => r['Tanggal']).sort();
+            const datesInMonth = rawData.map(r => r['Tanggal']).filter(d => {
+                const dt = parseYMD(d);
+                return dt && dt.getFullYear() === tahun && dt.getMonth() === bulanIdx;
+            }).sort();
             const endStr = datesInMonth.length ? datesInMonth[datesInMonth.length - 1] : toYMD(new Date(tahun, bulanIdx + 1, 0));
 
             document.getElementById('startDate').value = startStr;
@@ -1862,21 +1846,21 @@
         }
 
         function applyFilter() {
-            applyFilterWithoutAnimation();
+            triggerActionAnimation(() => { applyFilterWithoutAnimation(); });
         }
 
         function applyFilterWithoutAnimation() {
             const selectedRegion = document.getElementById('filterRegion').value;
-            const selectedRegionUpper = String(selectedRegion || 'ALL').trim().toUpperCase();
             const startDate = document.getElementById('startDate').value;
             const endDate = document.getElementById('endDate').value;
 
-            const filtered = rawData.filter(row => {
-                if (startDate && row['Tanggal'] < startDate) return false;
-                if (endDate && row['Tanggal'] > endDate) return false;
-                if (selectedRegionUpper !== 'ALL' && row._regionUpper !== selectedRegionUpper) return false;
-                return true;
-            });
+            const dateFiltered = rawData.filter(row =>
+                (!startDate || row['Tanggal'] >= startDate) &&
+                (!endDate || row['Tanggal'] <= endDate));
+
+            const filtered = selectedRegion === 'ALL'
+                ? dateFiltered
+                : dateFiltered.filter(r => String(r.Region || '').toUpperCase() === String(selectedRegion).toUpperCase());
 
             renderSlaKpi(filtered);
             renderTrenChart(filtered);
@@ -1902,18 +1886,20 @@
             animateCounter('totalTiket', sumField(rows, 'Pelanggan'), false);
 
             FU_GROUPS.forEach(g => {
-                const sub = rows.filter(r => r._fuLower.includes(g.kw));
+                const sub = rows.filter(r => String(r['Type FU'] || '').toLowerCase().includes(g.kw));
                 animateCounter(g.rev, sumField(sub, 'Rupiah'), true);
                 animateCounter(g.plg, sumField(sub, 'Pelanggan'), false, 'Pelanggan');
             });
         }
 
         function renderTrenChart(rows) {
-            const periods = [...new Set(rows.map(r => r._periode).filter(Boolean))];
+            if (trenChartInst) { trenChartInst.destroy(); trenChartInst = null; }
+
+            const periods = [...new Set(rows.map(r => getPeriodFromDate(r['Tanggal'])).filter(Boolean))];
             const daily = periods.length <= 1;
             const map = {};
             rows.forEach(r => {
-                const key = daily ? r['Tanggal'] : r._periode;
+                const key = daily ? r['Tanggal'] : getPeriodFromDate(r['Tanggal']);
                 if (!key) return;
                 map[key] = (map[key] || 0) + Number(r['Rupiah'] || 0);
             });
@@ -1933,18 +1919,9 @@
                 document.getElementById('trenChartTitle').innerHTML = `${svgIcon} Tren Pencapaian Bulanan`;
             }
 
-            const chartValues = keys.map(k => map[k]);
-            if (trenChartInst && trenChartInst.canvas && trenChartInst.canvas.isConnected) {
-                trenChartInst.data.labels = labels;
-                trenChartInst.data.datasets[0].data = chartValues;
-                trenChartInst.update();
-                return;
-            }
-
-            if (trenChartInst) trenChartInst.destroy();
             trenChartInst = new Chart(document.getElementById('trenChart'), {
                 type: 'line',
-                data: { labels, datasets: [{ data: chartValues, borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,0.1)', borderWidth: 2, fill: true, tension: 0.3 }] },
+                data: { labels, datasets: [{ data: keys.map(k => map[k]), borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,0.1)', borderWidth: 2, fill: true, tension: 0.3 }] },
                 options: {
                     maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false }, 
@@ -1955,6 +1932,8 @@
         }
 
         function renderRegionChart(rows, selectedRegion) {
+            if (regionChartInst) { regionChartInst.destroy(); regionChartInst = null; }
+
             const isAllRegion = (String(selectedRegion || 'ALL').toUpperCase() === 'ALL');
             const map = {};
 
@@ -1975,25 +1954,13 @@
                 titleEl.innerHTML = isAllRegion ? `${svgTrophy} Top Kinerja Region` : `${svgTrophy} Top Kinerja KP - Region ${escapeHtml(selectedRegion)}`;
             }
 
-            const regLabels = sorted.map(e => e[0]);
-            const regValues = sorted.map(e => e[1]);
-            const barColor = isAllRegion ? '#6366f1' : '#10b981';
+            const colors = sorted.map(() => isAllRegion ? '#6366f1' : '#10b981');
 
-            if (regionChartInst && regionChartInst.canvas && regionChartInst.canvas.isConnected) {
-                regionChartInst.data.labels = regLabels;
-                regionChartInst.data.datasets[0].data = regValues;
-                regionChartInst.data.datasets[0].backgroundColor = barColor;
-                regionChartInst.resize();
-                regionChartInst.update();
-                return;
-            }
-
-            if (regionChartInst) regionChartInst.destroy();
             regionChartInst = new Chart(document.getElementById('regionChart'), {
                 type: 'bar',
                 data: { 
-                    labels: regLabels, 
-                    datasets: [{ data: regValues, backgroundColor: barColor, borderRadius: 4 }] 
+                    labels: sorted.map(e => e[0]), 
+                    datasets: [{ data: sorted.map(e => e[1]), backgroundColor: colors, borderRadius: 4 }] 
                 },
                 options: {
                     indexAxis: 'y',
@@ -2026,7 +1993,7 @@
             const theadRow = document.getElementById('leaderboardHeadRow');
             if (!tbody) return;
 
-            const uniquePeriods = new Set(dataRows.map(row => row._periode).filter(Boolean));
+            const uniquePeriods = new Set(dataRows.map(row => getPeriodFromDate(row['Tanggal'])).filter(Boolean));
             const monthMultiplier = uniquePeriods.size > 0 ? uniquePeriods.size : 1;
             const isModeEfektifitas = dataRows.some(row => Number(row['Outbound'] || row['Jumlah_Outbound'] || 0) > 0);
 
@@ -2038,7 +2005,7 @@
             const stats = {};
             dataRows.forEach(row => {
                 const agent = row['Nama Agen'] || 'Tidak Diketahui';
-                const period = row._periode;
+                const period = getPeriodFromDate(row['Tanggal']);
                 
                 if (!stats[agent]) {
                     stats[agent] = { regions: new Set(), plg: 0, rp: 0, monthlyOutbound: {} };
@@ -2145,12 +2112,12 @@
                         : `<span class="text-slate-300 font-medium">-</span>`;
 
                     const renderOutboundTeks = row.outbound > 0 
-                        ? `<div class="text-[11px] sm:text-sm font-bold text-slate-600">${formatInt(row.outbound)}</div><div class="text-[11px] text-slate-400 font-medium mt-0.5">Panggilan</div>`
+                        ? `<div class="text-[11px] sm:text-sm font-bold text-slate-600">${row.outbound.toLocaleString('id-ID')}</div><div class="text-[11px] text-slate-400 font-medium mt-0.5">Panggilan</div>`
                         : `<span class="text-slate-300 font-medium">-</span>`;
 
                     const getCellBg = (colName) => activeSort === colName ? 'bg-indigo-50/20' : '';
 
-                    return `<tr class="animate-row hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0" style="animation-delay: ${Math.min(index, 15) * 20}ms;">
+                    return `<tr class="animate-row hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0" style="animation-delay: ${Math.min(index, 20) * 30}ms;">
                         <td class="py-2 px-3 w-3/12">
                             <div class="flex items-start space-x-1 sm:space-x-2">
                                 <span class="flex-shrink-0 mt-0.5">${medal}</span>
@@ -2163,7 +2130,7 @@
                         <td class="py-2 px-3 w-2/12 text-center align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('outbound')}">${renderOutboundTeks}</td>
                         <td class="py-2 px-3 w-3/12 text-center align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('rp')}">
                             <div class="text-[11px] sm:text-sm font-semibold text-slate-700">${formatRupiah(row.rp)}</div>
-                            <div class="text-[11px] text-slate-400 font-medium mt-0.5">${formatInt(row.plg)} plg</div>
+                            <div class="text-[11px] text-slate-400 font-medium mt-0.5">${row.plg.toLocaleString('id-ID')} plg</div>
                         </td>
                         <td class="py-2 px-3 w-2/12 text-center align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('capaian')}">
                             <div class="inline-block px-2 py-1 rounded-md text-xs font-bold shadow-sm ${badgeCapaian}">${pctCapaian.toFixed(1)}%</div>
@@ -2175,7 +2142,7 @@
                     const badgeClass = pct >= 100 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700";
                     const getCellBg = (colName) => activeSort === colName ? 'bg-indigo-50/20' : '';
 
-                    return `<tr class="animate-row hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0" style="animation-delay: ${Math.min(index, 15) * 20}ms;">
+                    return `<tr class="animate-row hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0" style="animation-delay: ${Math.min(index, 20) * 30}ms;">
                         <td class="py-2 px-3 w-5/12">
                             <div class="flex items-start space-x-2 sm:space-x-3">
                                 <span class="flex-shrink-0 mt-0.5">${medal}</span>
@@ -2187,7 +2154,7 @@
                         </td>
                         <td class="py-2 px-3 w-4/12 text-center align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('rp')}">
                             <div class="text-[11px] sm:text-sm font-semibold text-slate-700">${formatRupiah(row.rp)}</div>
-                            <div class="text-[11px] text-slate-400 font-medium mt-0.5">${formatInt(row.plg)} pelanggan</div>
+                            <div class="text-[11px] text-slate-400 font-medium mt-0.5">${row.plg.toLocaleString('id-ID')} pelanggan</div>
                         </td>
                         <td class="py-2 px-3 w-3/12 text-right align-middle whitespace-nowrap border-l border-slate-50 ${getCellBg('capaian')}">
                             <div class="inline-block px-2 py-1 rounded-md text-xs sm:text-sm font-bold shadow-sm ${badgeClass}">${pct.toFixed(1)}%</div>
@@ -2212,6 +2179,7 @@
             if (chevron) chevron.style.transform = isMomExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
             if (header) header.setAttribute('aria-expanded', String(isMomExpanded));
 
+            // Saat panel dibuka, jalankan animasi angka dari 0 pada seluruh baris tabel
             if (isMomExpanded) {
                 animateMomTableNumbers(true);
             }
@@ -2249,8 +2217,7 @@
         function renderMomBreakdown(typeFilteredData, selectedPeriod, prevPeriod, selectedRegion, startStr, endStr, prevStartStr, prevEndStr) {
             lastMomBreakdownArgs = [typeFilteredData, selectedPeriod, prevPeriod, selectedRegion, startStr, endStr, prevStartStr, prevEndStr];
 
-            const selectedRegionUpper = String(selectedRegion || 'ALL').trim().toUpperCase();
-            const isRegionLevel = (selectedRegionUpper === 'ALL');
+            const isRegionLevel = (String(selectedRegion || 'ALL').toUpperCase() === 'ALL');
             const areaLabel = isRegionLevel ? 'Region' : 'KP';
 
             const hintEl = document.getElementById('momToggleHint');
@@ -2274,10 +2241,10 @@
             const currMap = {};
 
             typeFilteredData.forEach(row => {
-                const reg = row._regionUpper;
-                if (!isRegionLevel && reg !== selectedRegionUpper) return;
+                const reg = String(row['Region'] || '').trim().toUpperCase();
+                if (!isRegionLevel && reg !== String(selectedRegion).trim().toUpperCase()) return;
 
-                const per = row._periodeTrim;
+                const per = String(row['Periode'] || '').trim();
                 const key = isRegionLevel
                     ? (reg || '-')
                     : (String(row['KP'] || row['kp'] || '-').trim() || '-');
@@ -2348,7 +2315,7 @@
                     : '';
                 const rowCursorClass = isRegionLevel ? 'cursor-pointer group' : '';
 
-                return `<tr ${rowDataAttr} class="animate-row hover:bg-white/[0.04] transition-colors ${rowCursorClass}" style="animation-delay: ${Math.min(idx, 15) * 20}ms;">
+                return `<tr ${rowDataAttr} class="animate-row hover:bg-white/[0.04] transition-colors ${rowCursorClass}" style="animation-delay: ${Math.min(idx, 18) * 28}ms;">
                     <td class="py-2.5 px-4 font-semibold text-slate-100 sticky left-0 bg-slate-900/95 group-hover:bg-slate-800/95 transition-colors">
                         <div class="flex items-center justify-between gap-2">
                             <span class="truncate">${escapeHtml(item.name)}</span>
@@ -2391,21 +2358,20 @@
                 </tr>
             `;
 
-            if (isMomExpanded) {
-                animateMomTableNumbers(true);
-            }
+            // Jalankan animasi angka pada seluruh baris & Grand Total
+            animateMomTableNumbers(true);
         }
 
         /* ==========================================================
             TAB PROGRES TAGIHAN
         ========================================================== */
-        const isLunasRow = (row) => row._statusUpper === 'LUNAS';
+        const isLunasRow = (row) => String(row['Status'] || '').trim().toUpperCase() === 'LUNAS';
         const hasPayDate = (row) => { const t = row['Tanggal_Bayar_Saja']; return !!t && t !== 'Belum Bayar'; };
         const inRange = (tgl, startStr, endStr) => !(startStr && tgl < startStr) && !(endStr && tgl > endStr);
         const isLunasInRange = (row, startStr, endStr) => isLunasRow(row) && hasPayDate(row) && inRange(row['Tanggal_Bayar_Saja'], startStr, endStr);
 
         function rowMatchesBillingType(row) {
-            const tipe = row._tipeLower;
+            const tipe = String(row['Tipe_Layanan'] || '').trim().toLowerCase();
             if (currentBillingType === 'all') return tipe === 'prepaid' || tipe === 'postpaid';
             return tipe === currentBillingType;
         }
@@ -2418,8 +2384,8 @@
             regionSelect.value = 'ALL';
             
             const initTypeData = allData.progres;
-            const prepaidPeriods = [...new Set(initTypeData.filter(r => r._tipeLower === 'prepaid').map(r => r._periodeTrim).filter(Boolean))].sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
-            const postpaidPeriods = [...new Set(initTypeData.filter(r => r._tipeLower === 'postpaid').map(r => r._periodeTrim).filter(Boolean))].sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
+            const prepaidPeriods = [...new Set(initTypeData.filter(r => String(r.Tipe_Layanan).trim().toLowerCase() === 'prepaid').map(r => r.Periode).filter(Boolean))].sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
+            const postpaidPeriods = [...new Set(initTypeData.filter(r => String(r.Tipe_Layanan).trim().toLowerCase() === 'postpaid').map(r => r.Periode).filter(Boolean))].sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
 
             filterState.prepaid = { periode: prepaidPeriods.length > 0 ? prepaidPeriods[0] : 'ALL', region: 'ALL', startDate: '', endDate: '' };
             filterState.postpaid = { periode: postpaidPeriods.length > 0 ? postpaidPeriods[0] : 'ALL', region: 'ALL', startDate: '', endDate: '' };
@@ -2469,7 +2435,7 @@
             const periodSelect = document.getElementById('filterPeriode');
             
             periodSelect.innerHTML = '<option value="ALL">Semua Periode</option>';
-            const periods = [...new Set(typeFilteredData.map(row => row._periodeTrim).filter(Boolean))];
+            const periods = [...new Set(typeFilteredData.map(row => row['Periode']).filter(Boolean))];
             periods.sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
             periods.forEach(p => { const opt = document.createElement('option'); opt.value = p; opt.innerText = p; periodSelect.appendChild(opt); });
         }
@@ -2481,7 +2447,7 @@
 
         function resetProgresFilter() {
             const typeFilteredData = allData.progres.filter(rowMatchesBillingType);
-            const periods = [...new Set(typeFilteredData.map(row => row._periodeTrim).filter(Boolean))].sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
+            const periods = [...new Set(typeFilteredData.map(row => row['Periode']).filter(Boolean))].sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
             
             let defaultPeriod = 'ALL';
             if (currentBillingType === 'prepaid' || currentBillingType === 'postpaid') {
@@ -2504,24 +2470,25 @@
             applyProgresFilter();
         }
 
-        function getPeriodTotals(typeFilteredData, periodName, regionUpper, startDt = "", endDt = "") {
+        function getPeriodTotals(periodName, regionFilter, startDt = "", endDt = "") {
+            const rows = allData.progres.filter(r =>
+                String(r['Periode'] || '').trim() === String(periodName).trim() &&
+                (regionFilter === 'ALL' || String(r['Region'] || '').trim().toUpperCase() === regionFilter.trim().toUpperCase()) &&
+                rowMatchesBillingType(r));
+
             let totalPlg = 0, totalRp = 0;
-            for (let i = 0; i < typeFilteredData.length; i++) {
-                const row = typeFilteredData[i];
-                if (row._periodeTrim !== periodName) continue;
-                if (regionUpper !== 'ALL' && row._regionUpper !== regionUpper) continue;
+            rows.forEach(row => {
                 if (isLunasInRange(row, startDt, endDt)) {
                     totalPlg += Number(row['Jumlah_Pelanggan'] || 0);
                     totalRp += Number(row['Jumlah_Rupiah'] || 0);
                 }
-            }
+            });
             return { totalPlg, totalRp };
         }
 
         function applyProgresFilter() {
             const selectedPeriod = document.getElementById('filterPeriode').value;
             const selectedRegion = document.getElementById('progFilterRegion').value;
-            const selectedRegionUpper = String(selectedRegion || 'ALL').trim().toUpperCase();
             const startStr = document.getElementById('progStartDate').value;
             const endStr = document.getElementById('progEndDate').value;
 
@@ -2536,12 +2503,12 @@
 
             let boardBaseData = typeFilteredData;
             if (selectedPeriod !== 'ALL') {
-                boardBaseData = boardBaseData.filter(row => row._periodeTrim === selectedPeriod);
+                boardBaseData = boardBaseData.filter(row => String(row['Periode'] || '').trim() === String(selectedPeriod).trim());
             }
 
             let cardBaseData = boardBaseData;
-            if (selectedRegionUpper !== 'ALL') {
-                cardBaseData = cardBaseData.filter(row => row._regionUpper === selectedRegionUpper);
+            if (selectedRegion !== 'ALL') {
+                cardBaseData = cardBaseData.filter(row => String(row['Region'] || '').trim().toUpperCase() === String(selectedRegion).trim().toUpperCase());
             }
 
             let gTargetPlg = 0, gTargetRp = 0, gLunasPlg = 0, gLunasRp = 0;
@@ -2549,7 +2516,7 @@
 
             cardBaseData.forEach(row => {
                 const plg = Number(row['Jumlah_Pelanggan'] || 0), rp = Number(row['Jumlah_Rupiah'] || 0);
-                const statusUpper = row._statusUpper;
+                const statusUpper = String(row['Status'] || '').trim().toUpperCase();
 
                 gTargetPlg += plg; gTargetRp += rp;
 
@@ -2588,7 +2555,7 @@
             animateCounter('detLuar', gLuarPlg, false, 'Plg');
             document.getElementById('rowLuar').classList.toggle('hidden', gLuarPlg === 0);
 
-            document.getElementById('labelCapaianTeks').innerText = selectedRegionUpper === 'ALL' ? 'Nasional' : 'Region ' + selectedRegion;
+            document.getElementById('labelCapaianTeks').innerText = selectedRegion === 'ALL' ? 'Nasional' : 'Region ' + selectedRegion;
             
             // Animasi Progress Bar & Persentase
             document.getElementById('progBarFill').style.width = Math.min(pctCapaian, 100).toFixed(1) + "%";
@@ -2605,10 +2572,10 @@
                 currDate.setMonth(currDate.getMonth() - 1);
                 const prevPeriod = `${bulanNames[currDate.getMonth()]} ${currDate.getFullYear()}`;
 
-                const allPeriodsForType = [...new Set(typeFilteredData.map(r => r._periodeTrim).filter(Boolean))];
+                const allPeriodsForType = [...new Set(typeFilteredData.map(r => r['Periode']).filter(Boolean))];
                 allPeriodsForType.sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
                 const latestPeriod = allPeriodsForType.length > 0 ? allPeriodsForType[0] : "";
-                const isLatestPeriod = (selectedPeriod === latestPeriod);
+                const isLatestPeriod = (String(selectedPeriod).trim() === String(latestPeriod).trim());
 
                 let prevStartStr = "", prevEndStr = "";
 
@@ -2631,7 +2598,7 @@
                     }
                 }
 
-                const prevTotals = getPeriodTotals(typeFilteredData, prevPeriod, selectedRegionUpper, prevStartStr, prevEndStr);
+                const prevTotals = getPeriodTotals(prevPeriod, selectedRegion, prevStartStr, prevEndStr);
                 const diffPlg = gLunasPlg - prevTotals.totalPlg;
                 const diffRp = gLunasRp - prevTotals.totalRp;
                 const pctPlg = prevTotals.totalPlg > 0 ? (diffPlg / prevTotals.totalPlg) * 100 : 0;
@@ -2691,7 +2658,7 @@
             // Leaderboard Region
             const regionStats = {};
             boardBaseData.forEach(row => {
-                const reg = row._regionUpper;
+                const reg = String(row['Region'] || '').trim().toUpperCase();
                 if (!reg) return;
                 if (!regionStats[reg]) regionStats[reg] = { targetPlg: 0, targetRp: 0, lunasPlg: 0, lunasRp: 0 };
                 const plg = Number(row['Jumlah_Pelanggan'] || 0), rp = Number(row['Jumlah_Rupiah'] || 0);
@@ -2718,9 +2685,9 @@
                 
                 const badgeClass = row.pct >= 100 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700";
 
-                tbodyHtml += `<tr class="animate-row hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0" style="animation-delay: ${Math.min(index, 15) * 20}ms;">
+                tbodyHtml += `<tr class="animate-row hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0" style="animation-delay: ${Math.min(index, 20) * 30}ms;">
                     <td class="py-2.5 px-3 w-4/12"><div class="flex items-start space-x-2 sm:space-x-3"><span class="flex-shrink-0 mt-0.5">${medal}</span><div class="font-bold text-slate-700 leading-tight text-[11px] sm:text-sm pt-0.5">${escapeHtml(row.region)}</div></div></td>
-                    <td class="py-2.5 px-3 w-3/12 text-center align-middle whitespace-nowrap"><div class="text-[11px] sm:text-sm font-semibold text-slate-700">${formatInt(row.lunasPlg)}</div><div class="text-[11px] text-slate-400 font-medium mt-0.5">dari ${formatInt(row.targetPlg)}</div></td>
+                    <td class="py-2.5 px-3 w-3/12 text-center align-middle whitespace-nowrap"><div class="text-[11px] sm:text-sm font-semibold text-slate-700">${row.lunasPlg.toLocaleString('id-ID')}</div><div class="text-[11px] text-slate-400 font-medium mt-0.5">dari ${row.targetPlg.toLocaleString('id-ID')}</div></td>
                     <td class="py-2.5 px-3 w-3/12 text-center align-middle whitespace-nowrap"><div class="text-[11px] sm:text-sm font-semibold text-slate-700">${formatRupiah(row.lunasRp)}</div><div class="text-[11px] text-slate-400 font-medium mt-0.5">dari ${formatRupiah(row.targetRp)}</div></td>
                     <td class="py-2.5 px-3 w-2/12 text-right align-middle whitespace-nowrap"><div class="inline-block px-2 py-1 rounded-md text-xs sm:text-sm font-bold shadow-sm ${badgeClass}">${row.pct.toFixed(1)}%</div></td>
                 </tr>`;
@@ -2732,6 +2699,7 @@
         }
 
         function renderProgresTrendChartFromData(dataRows, selectedPeriod, selectedRegion, startStr, endStr) {
+            if (progresTrenChartInst) { progresTrenChartInst.destroy(); progresTrenChartInst = null; }
             let chartLabels = [], chartValues = [], titleText = "";
             const isDailyView = (selectedPeriod !== 'ALL') || (startStr !== '' || endStr !== '');
 
@@ -2739,7 +2707,7 @@
                 titleText = selectedRegion !== 'ALL' ? `Tren Lunas Bulanan - Region ${selectedRegion}` : "Tren Jumlah Pelanggan Lunas Bulanan";
                 const mapBulanan = {}, sortMap = {};
                 dataRows.forEach(row => {
-                    const p = row._periodeTrim;
+                    const p = row['Periode'];
                     if (p && isLunasInRange(row, startStr, endStr)) {
                         mapBulanan[p] = (mapBulanan[p] || 0) + Number(row['Jumlah_Pelanggan'] || 0);
                         sortMap[p] = parsePeriodeToDate(p);
@@ -2776,23 +2744,13 @@
             if (currentBillingType === 'postpaid') { lineCol = '#8b5cf6'; bgCol = 'rgba(139, 92, 246, 0.1)'; }
             else if (currentBillingType === 'all') { lineCol = '#0ea5e9'; bgCol = 'rgba(14, 165, 233, 0.1)'; }
 
-            if (progresTrenChartInst && progresTrenChartInst.canvas && progresTrenChartInst.canvas.isConnected) {
-                progresTrenChartInst.data.labels = chartLabels;
-                progresTrenChartInst.data.datasets[0].data = chartValues;
-                progresTrenChartInst.data.datasets[0].borderColor = lineCol;
-                progresTrenChartInst.data.datasets[0].backgroundColor = bgCol;
-                progresTrenChartInst.update();
-                return;
-            }
-
-            if (progresTrenChartInst) progresTrenChartInst.destroy();
             progresTrenChartInst = new Chart(document.getElementById('progresTrenChart'), {
                 type: 'line',
                 data: { labels: chartLabels, datasets: [{ data: chartValues, borderColor: lineCol, backgroundColor: bgCol, borderWidth: 2, fill: true, tension: 0.3 }] },
                 options: {
                     maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false }, 
-                    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (context) => ' ' + formatInt(context.parsed.y) + ' Pelanggan' } } },
+                    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (context) => ' ' + context.parsed.y.toLocaleString('id-ID') + ' Pelanggan' } } },
                     scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { ticks: { maxRotation: 45, minRotation: 45 } } }
                 }
             });
