@@ -883,9 +883,27 @@
         #dashboardWrapper.is-animating { opacity: 0; transform: translateY(12px); }
         @keyframes rowFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-row { animation: rowFadeIn 0.5s ease forwards; opacity: 0; }
+
+        /* Accordion & Tabel Drill-Down MoM */
+        .mom-accordion-grid {
+            display: grid;
+            grid-template-rows: 0fr;
+            transition: grid-template-rows 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .mom-accordion-grid.is-open {
+            grid-template-rows: 1fr;
+        }
+        .mom-accordion-inner {
+            overflow: hidden;
+        }
+        .tabular-nums {
+            font-variant-numeric: tabular-nums;
+        }
+
         @media (prefers-reduced-motion: reduce) {
             #dashboardWrapper { transition: none; }
             .animate-row { animation: none; opacity: 1; }
+            .mom-accordion-grid { transition: none; }
         }
 
         input[type="date"] { position: relative; cursor: pointer; }
@@ -1190,29 +1208,87 @@
                 </div>
             </div>
 
-            <!-- SUMMARY CARD MoM -->
-            <div id="momSummaryCard" class="hidden bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 sm:p-5 rounded-2xl shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div class="flex items-center gap-3 w-full sm:w-auto">
-                    <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-lg flex-shrink-0">
-                        <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                        </svg>
+            <!-- SUMMARY CARD MoM + DRILL-DOWN REGION / KP -->
+            <div id="momSummaryCard" class="hidden bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 text-white rounded-2xl shadow-md border border-slate-700/70 overflow-hidden transition-all">
+                <!-- Header Kartu (Klik untuk Buka/Tutup Rincian) -->
+                <div onclick="toggleMomDrilldown()" role="button" tabindex="0" aria-expanded="false" id="momSummaryHeader"
+                     onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleMomDrilldown();}"
+                     class="p-4 sm:p-5 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 cursor-pointer select-none hover:bg-white/[0.03] transition-colors">
+                    <div class="flex items-center gap-3 w-full lg:w-auto">
+                        <div class="w-10 h-10 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center flex-shrink-0">
+                            <svg class="w-5 h-5 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <h4 class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Perbandingan Bulan Lalu</h4>
+                                <span id="momToggleHint" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-400/20">
+                                    Rincian per Region
+                                </span>
+                            </div>
+                            <p id="momSubTitle" class="text-xs sm:text-sm font-bold text-slate-100 leading-tight mt-1">-</p>
+                        </div>
                     </div>
-                    <div>
-                        <h4 class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Perbandingan Bulan Lalu</h4>
-                        <p id="momSubTitle" class="text-[11px] sm:text-sm font-bold text-slate-200 leading-tight mt-0.5">-</p>
+
+                    <div class="flex items-center justify-between sm:justify-end gap-3 w-full lg:w-auto">
+                        <div class="grid grid-cols-2 gap-2.5 sm:gap-3 flex-1 sm:flex-initial text-left sm:text-right">
+                            <div class="bg-white/5 px-3.5 py-2.5 rounded-xl border border-white/10">
+                                <span class="block text-[10px] sm:text-[11px] text-slate-400 uppercase font-semibold">Pelanggan Lunas</span>
+                                <span id="momPlgVal" class="text-sm sm:text-base font-bold text-white tabular-nums">-</span>
+                                <span id="momPlgBadge" class="block text-[11px] font-semibold mt-0.5 tabular-nums">-</span>
+                            </div>
+                            <div class="bg-white/5 px-3.5 py-2.5 rounded-xl border border-white/10">
+                                <span class="block text-[10px] sm:text-[11px] text-slate-400 uppercase font-semibold">Total Revenue</span>
+                                <span id="momRpVal" class="text-sm sm:text-base font-bold text-white tabular-nums">-</span>
+                                <span id="momRpBadge" class="block text-[11px] font-semibold mt-0.5 tabular-nums">-</span>
+                            </div>
+                        </div>
+
+                        <!-- Tombol Icon Panah Ke Bawah -->
+                        <button type="button" aria-label="Tampilkan rincian perbandingan"
+                                class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center flex-shrink-0 transition-all">
+                            <svg id="momChevronIcon" class="w-5 h-5 text-slate-200 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
                     </div>
                 </div>
-                <div class="grid grid-cols-2 gap-4 w-full sm:w-auto text-left sm:text-right">
-                    <div class="bg-white/5 p-3 rounded-xl border border-white/10">
-                        <span class="block text-[11px] text-slate-400 uppercase font-semibold">Pelanggan Lunas</span>
-                        <span id="momPlgVal" class="text-sm sm:text-base font-bold text-white">-</span>
-                        <span id="momPlgBadge" class="block text-[11px] font-semibold mt-0.5">-</span>
-                    </div>
-                    <div class="bg-white/5 p-3 rounded-xl border border-white/10">
-                        <span class="block text-[11px] text-slate-400 uppercase font-semibold">Total Revenue</span>
-                        <span id="momRpVal" class="text-sm sm:text-base font-bold text-white">-</span>
-                        <span id="momRpBadge" class="block text-[11px] font-semibold mt-0.5">-</span>
+
+                <!-- Panel Drill-Down Tabel Perbandingan Region / KP -->
+                <div id="momDrilldownPanel" class="mom-accordion-grid">
+                    <div class="mom-accordion-inner">
+                        <div class="border-t border-slate-700/80 bg-slate-950/45 p-4 sm:p-5 space-y-3">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
+                                    <h5 id="momBreakdownTitle" class="text-xs sm:text-sm font-bold text-slate-100">Rincian Revenue per Region</h5>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span id="momBreakdownNote" class="text-[11px] text-slate-400">Klik baris Region untuk melihat rincian KP</span>
+                                    <button type="button" id="momBackRegionBtn" onclick="resetMomRegionFilter()"
+                                            class="hidden px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 border border-white/15 text-[11px] font-semibold text-indigo-200 transition-colors">
+                                        ← Semua Region
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="overflow-x-auto table-scroll rounded-xl border border-slate-700/70 bg-slate-900/70">
+                                <table class="w-full text-left border-collapse min-w-[640px]">
+                                    <thead>
+                                        <tr id="momBreakdownHead" class="bg-slate-800/90 border-b border-slate-700 text-[11px] uppercase tracking-wider text-slate-300">
+                                            <!-- Diisi dinamis oleh JS -->
+                                        </tr>
+                                    </thead>
+                                    <tbody id="momBreakdownBody" class="divide-y divide-slate-800/90 text-xs sm:text-sm">
+                                        <!-- Diisi dinamis oleh JS -->
+                                    </tbody>
+                                    <tfoot id="momBreakdownFoot" class="bg-slate-800/95 border-t-2 border-slate-600 text-xs sm:text-sm font-bold">
+                                        <!-- Grand Total diisi dinamis oleh JS -->
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1271,6 +1347,11 @@
         let lbSortCol = 'default';
         let lbSortAsc = false;
         let lastFilteredData = [];
+
+        let isMomExpanded = false;
+        let momSortCol = 'name';
+        let momSortAsc = true;
+        let lastMomBreakdownArgs = null;
 
         const filterState = {
             prepaid: { periode: 'ALL', region: 'ALL', startDate: '', endDate: '' },
@@ -1868,6 +1949,199 @@
         }
 
         /* ==========================================================
+            DRILL-DOWN PERBANDINGAN BULAN LALU (MoM)
+        ========================================================== */
+        function toggleMomDrilldown(forceState) {
+            isMomExpanded = typeof forceState === 'boolean' ? forceState : !isMomExpanded;
+            const panel = document.getElementById('momDrilldownPanel');
+            const chevron = document.getElementById('momChevronIcon');
+            const header = document.getElementById('momSummaryHeader');
+            if (panel) panel.classList.toggle('is-open', isMomExpanded);
+            if (chevron) chevron.style.transform = isMomExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
+            if (header) header.setAttribute('aria-expanded', String(isMomExpanded));
+        }
+
+        function sortMomBreakdown(col) {
+            if (momSortCol === col) {
+                momSortAsc = !momSortAsc;
+            } else {
+                momSortCol = col;
+                momSortAsc = (col === 'name');
+            }
+            if (lastMomBreakdownArgs) renderMomBreakdown(...lastMomBreakdownArgs);
+        }
+
+        function drillDownMomRegion(regionName) {
+            const regSelect = document.getElementById('progFilterRegion');
+            if (!regSelect) return;
+            const matchOpt = [...regSelect.options].find(o => o.value.toUpperCase() === regionName.toUpperCase());
+            if (matchOpt) {
+                regSelect.value = matchOpt.value;
+                isMomExpanded = true;
+                applyProgresFilter();
+            }
+        }
+
+        function resetMomRegionFilter() {
+            const regSelect = document.getElementById('progFilterRegion');
+            if (!regSelect) return;
+            regSelect.value = 'ALL';
+            isMomExpanded = true;
+            applyProgresFilter();
+        }
+
+        function formatSelisihRupiah(diff) {
+            if (diff > 0) return '+' + formatRupiah(diff);
+            if (diff < 0) return '-' + formatRupiah(Math.abs(diff));
+            return formatRupiah(0);
+        }
+
+        function renderMomBreakdown(typeFilteredData, selectedPeriod, prevPeriod, selectedRegion, startStr, endStr, prevStartStr, prevEndStr) {
+            lastMomBreakdownArgs = [typeFilteredData, selectedPeriod, prevPeriod, selectedRegion, startStr, endStr, prevStartStr, prevEndStr];
+
+            const isRegionLevel = (String(selectedRegion || 'ALL').toUpperCase() === 'ALL');
+            const areaLabel = isRegionLevel ? 'Region' : 'KP';
+
+            const hintEl = document.getElementById('momToggleHint');
+            const titleEl = document.getElementById('momBreakdownTitle');
+            const noteEl = document.getElementById('momBreakdownNote');
+            const backRegBtn = document.getElementById('momBackRegionBtn');
+            const headEl = document.getElementById('momBreakdownHead');
+            const bodyEl = document.getElementById('momBreakdownBody');
+            const footEl = document.getElementById('momBreakdownFoot');
+
+            if (hintEl) hintEl.innerText = isRegionLevel ? 'Rincian per Region' : `Rincian per KP (${selectedRegion})`;
+            if (titleEl) titleEl.innerText = isRegionLevel
+                ? `Perbandingan Revenue Seluruh Region (${prevPeriod} vs ${selectedPeriod})`
+                : `Perbandingan Revenue per KP — Region ${selectedRegion} (${prevPeriod} vs ${selectedPeriod})`;
+            if (noteEl) noteEl.innerText = isRegionLevel
+                ? 'Klik nama Region untuk melihat rincian per KP'
+                : `Menampilkan seluruh KP pada Region ${selectedRegion}`;
+            if (backRegBtn) backRegBtn.classList.toggle('hidden', isRegionLevel);
+
+            const prevMap = {};
+            const currMap = {};
+
+            typeFilteredData.forEach(row => {
+                const reg = String(row['Region'] || '').trim().toUpperCase();
+                if (!isRegionLevel && reg !== String(selectedRegion).trim().toUpperCase()) return;
+
+                const per = String(row['Periode'] || '').trim();
+                const key = isRegionLevel
+                    ? (reg || '-')
+                    : (String(row['KP'] || row['kp'] || '-').trim() || '-');
+                const rp = Number(row['Jumlah_Rupiah'] || 0);
+
+                if (per === prevPeriod && isLunasInRange(row, prevStartStr, prevEndStr)) {
+                    prevMap[key] = (prevMap[key] || 0) + rp;
+                } else if (per === selectedPeriod && isLunasInRange(row, startStr, endStr)) {
+                    currMap[key] = (currMap[key] || 0) + rp;
+                }
+            });
+
+            const allKeys = [...new Set([...Object.keys(prevMap), ...Object.keys(currMap)])];
+            const items = allKeys.map(name => {
+                const prevRp = prevMap[name] || 0;
+                const currRp = currMap[name] || 0;
+                const diffRp = currRp - prevRp;
+                const pct = prevRp > 0 ? (diffRp / prevRp) * 100 : (currRp > 0 ? 100 : 0);
+                return { name, prevRp, currRp, diffRp, pct };
+            });
+
+            items.sort((a, b) => {
+                let cmp = 0;
+                if (momSortCol === 'name') cmp = a.name.localeCompare(b.name, 'id');
+                else if (momSortCol === 'prev') cmp = a.prevRp - b.prevRp;
+                else if (momSortCol === 'curr') cmp = a.currRp - b.currRp;
+                else if (momSortCol === 'diff') cmp = a.diffRp - b.diffRp;
+                return momSortAsc ? cmp : -cmp;
+            });
+
+            const sortIcon = (col) => {
+                if (momSortCol !== col) return '<span class="text-slate-500 ml-1">↕</span>';
+                return momSortAsc
+                    ? '<span class="text-indigo-400 ml-1">↑</span>'
+                    : '<span class="text-indigo-400 ml-1">↓</span>';
+            };
+
+            headEl.innerHTML = `
+                <th onclick="sortMomBreakdown('name')" class="py-3 px-4 font-semibold cursor-pointer hover:bg-slate-700/60 transition-colors sticky left-0 bg-slate-800 z-10 w-4/12">
+                    ${areaLabel} ${sortIcon('name')}
+                </th>
+                <th onclick="sortMomBreakdown('prev')" class="py-3 px-4 font-semibold text-right cursor-pointer hover:bg-slate-700/60 transition-colors whitespace-nowrap w-3/12">
+                    Revenue ${escapeHtml(prevPeriod)} ${sortIcon('prev')}
+                </th>
+                <th onclick="sortMomBreakdown('curr')" class="py-3 px-4 font-semibold text-right cursor-pointer hover:bg-slate-700/60 transition-colors whitespace-nowrap w-3/12">
+                    Revenue ${escapeHtml(selectedPeriod)} ${sortIcon('curr')}
+                </th>
+                <th onclick="sortMomBreakdown('diff')" class="py-3 px-4 font-semibold text-right cursor-pointer hover:bg-slate-700/60 transition-colors whitespace-nowrap w-2/12">
+                    Selisih Revenue ${sortIcon('diff')}
+                </th>
+            `;
+
+            let grandPrev = 0, grandCurr = 0;
+
+            bodyEl.innerHTML = items.map(item => {
+                grandPrev += item.prevRp;
+                grandCurr += item.currRp;
+
+                const isPos = item.diffRp > 0;
+                const isNeg = item.diffRp < 0;
+                const diffColor = isPos ? 'text-emerald-400' : isNeg ? 'text-rose-400' : 'text-slate-300';
+                const badgeBg = isPos ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                              : isNeg ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                              : 'bg-slate-700/50 text-slate-300 border-slate-600';
+
+                const rowDataAttr = isRegionLevel
+                    ? `data-mom-region="${escapeHtml(item.name)}" title="Klik untuk lihat rincian KP di ${escapeHtml(item.name)}"`
+                    : '';
+                const rowCursorClass = isRegionLevel ? 'cursor-pointer group' : '';
+
+                return `<tr ${rowDataAttr} class="hover:bg-white/[0.04] transition-colors ${rowCursorClass}">
+                    <td class="py-2.5 px-4 font-semibold text-slate-100 sticky left-0 bg-slate-900/95 group-hover:bg-slate-800/95 transition-colors">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="truncate">${escapeHtml(item.name)}</span>
+                            ${isRegionLevel ? '<span class="text-[11px] text-slate-500 group-hover:text-indigo-400 transition-colors">›</span>' : ''}
+                        </div>
+                    </td>
+                    <td class="py-2.5 px-4 text-right text-slate-300 tabular-nums whitespace-nowrap">${formatRupiah(item.prevRp)}</td>
+                    <td class="py-2.5 px-4 text-right font-semibold text-white tabular-nums whitespace-nowrap">${formatRupiah(item.currRp)}</td>
+                    <td class="py-2.5 px-4 text-right tabular-nums whitespace-nowrap">
+                        <div class="inline-flex items-center justify-end gap-2">
+                            <span class="font-bold ${diffColor}">${formatSelisihRupiah(item.diffRp)}</span>
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${badgeBg}">
+                                ${item.pct >= 0 ? '+' : ''}${item.pct.toFixed(1)}%
+                            </span>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('') || `<tr><td colspan="4" class="py-5 px-4 text-center text-slate-400">Tidak ada data perbandingan untuk filter ini.</td></tr>`;
+
+            const grandDiff = grandCurr - grandPrev;
+            const grandPct = grandPrev > 0 ? (grandDiff / grandPrev) * 100 : (grandCurr > 0 ? 100 : 0);
+            const grandDiffColor = grandDiff > 0 ? 'text-emerald-400' : grandDiff < 0 ? 'text-rose-400' : 'text-slate-200';
+            const grandBadgeBg = grandDiff > 0 ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30'
+                               : grandDiff < 0 ? 'bg-rose-500/20 text-rose-300 border-rose-400/30'
+                               : 'bg-slate-700 text-slate-300 border-slate-600';
+
+            footEl.innerHTML = `
+                <tr>
+                    <td class="py-3 px-4 text-white sticky left-0 bg-slate-800 z-10">Grand Total</td>
+                    <td class="py-3 px-4 text-right text-slate-200 tabular-nums whitespace-nowrap">${formatRupiah(grandPrev)}</td>
+                    <td class="py-3 px-4 text-right text-white tabular-nums whitespace-nowrap">${formatRupiah(grandCurr)}</td>
+                    <td class="py-3 px-4 text-right tabular-nums whitespace-nowrap">
+                        <div class="inline-flex items-center justify-end gap-2">
+                            <span class="${grandDiffColor}">${formatSelisihRupiah(grandDiff)}</span>
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${grandBadgeBg}">
+                                ${grandPct >= 0 ? '+' : ''}${grandPct.toFixed(1)}%
+                            </span>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        /* ==========================================================
             TAB PROGRES TAGIHAN
         ========================================================== */
         const isLunasRow = (row) => String(row['Status'] || '').trim().toUpperCase() === 'LUNAS';
@@ -1895,6 +2169,15 @@
             filterState.prepaid = { periode: prepaidPeriods.length > 0 ? prepaidPeriods[0] : 'ALL', region: 'ALL', startDate: '', endDate: '' };
             filterState.postpaid = { periode: postpaidPeriods.length > 0 ? postpaidPeriods[0] : 'ALL', region: 'ALL', startDate: '', endDate: '' };
             filterState.all = { periode: 'ALL', region: 'ALL', startDate: '', endDate: '' };
+
+            const momBody = document.getElementById('momBreakdownBody');
+            if (momBody && !momBody.dataset.bound) {
+                momBody.dataset.bound = '1';
+                momBody.addEventListener('click', (e) => {
+                    const tr = e.target.closest('tr[data-mom-region]');
+                    if (tr) drillDownMomRegion(tr.dataset.momRegion);
+                });
+            }
 
             ProgresMap.mount('#progresMapMount', { webAppUrl: WEB_APP_URL });
             ProgresMap.setProgresData(allData.progres);
@@ -2120,14 +2403,26 @@
 
                 const plgBadgeEl = document.getElementById('momPlgBadge');
                 plgBadgeEl.innerText = `${diffPlg >= 0 ? '+' : ''}${diffPlg.toLocaleString('id-ID')} (${pctPlg.toFixed(1)}%)`;
-                plgBadgeEl.className = `block text-[11px] font-semibold mt-0.5 ${diffPlg >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+                plgBadgeEl.className = `block text-[11px] font-semibold mt-0.5 tabular-nums ${diffPlg >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
 
                 const rpBadgeEl = document.getElementById('momRpBadge');
                 rpBadgeEl.innerText = `${diffRp >= 0 ? '+' : ''}${formatRupiah(diffRp)} (${pctRp.toFixed(1)}%)`;
-                rpBadgeEl.className = `block text-[11px] font-semibold mt-0.5 ${diffRp >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+                rpBadgeEl.className = `block text-[11px] font-semibold mt-0.5 tabular-nums ${diffRp >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+
+                renderMomBreakdown(
+                    typeFilteredData,
+                    selectedPeriod,
+                    prevPeriod,
+                    selectedRegion,
+                    startStr,
+                    endStr,
+                    prevStartStr,
+                    prevEndStr
+                );
             } else {
                 momBadge.className = 'hidden';
                 momSummaryCard.classList.add('hidden');
+                toggleMomDrilldown(false);
             }
 
             // Leaderboard Region
