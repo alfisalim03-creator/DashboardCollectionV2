@@ -35,6 +35,36 @@
   const col = (n) => (n > 100 ? '#e11d48' : n >= 25 ? '#f97316' : '#fbbf24');
   const vis = () => S.root.getClientRects().length > 0;
 
+  function animStat(el, endVal, isRp) {
+    if (!el) return;
+    const target = Math.round(Number(endVal) || 0);
+    const fmt = (v) => (isRp ? rp(v) : num(v));
+    if (g.matchMedia && g.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      el._curVal = target;
+      el.textContent = fmt(target);
+      return;
+    }
+    const start = typeof el._curVal === 'number' ? el._curVal : 0;
+    if (start === target) {
+      el.textContent = fmt(target);
+      return;
+    }
+    const tok = (el._animTok = (el._animTok || 0) + 1);
+    const dur = 850;
+    let t0 = null;
+    function tick(ts) {
+      if (el._animTok !== tok) return;
+      if (!t0) t0 = ts;
+      const p = Math.min((ts - t0) / dur, 1);
+      const ease = p === 1 ? 1 : 1 - Math.pow(1 - p, 4);
+      const cur = p === 1 ? target : Math.round(start + (target - start) * ease);
+      el._curVal = cur;
+      el.textContent = fmt(cur);
+      if (p < 1) g.requestAnimationFrame(tick);
+    }
+    g.requestAnimationFrame(tick);
+  }
+
   function cleanKabLabel(raw) {
     let s = String(raw == null ? '' : raw).trim();
     if (!s) return '(Tidak Terdeteksi)';
@@ -121,9 +151,9 @@
       </div>
     </div>
     <div class="grid grid-cols-3 gap-2 sm:gap-3">
-      <div class="${TILE}"><p class="text-[11px] text-slate-500">Pelanggan tertunggak</p><p data-r="sPlg" class="text-base sm:text-lg font-bold text-rose-600">0</p></div>
-      <div class="${TILE}"><p class="text-[11px] text-slate-500">KP terdampak</p><p data-r="sKp" class="text-base sm:text-lg font-bold text-slate-700">0</p></div>
-      <div class="${TILE}"><p class="text-[11px] text-slate-500">Total nominal</p><p data-r="sRp" class="text-base sm:text-lg font-bold text-slate-700 truncate">Rp 0</p></div>
+      <div class="${TILE}"><p class="text-[11px] text-slate-500">Pelanggan tertunggak</p><p data-r="sPlg" class="text-base sm:text-lg font-bold text-rose-600 tabular-nums">0</p></div>
+      <div class="${TILE}"><p class="text-[11px] text-slate-500">KP terdampak</p><p data-r="sKp" class="text-base sm:text-lg font-bold text-slate-700 tabular-nums">0</p></div>
+      <div class="${TILE}"><p class="text-[11px] text-slate-500">Total nominal</p><p data-r="sRp" class="text-base sm:text-lg font-bold text-slate-700 truncate tabular-nums">Rp 0</p></div>
     </div>
     <div data-r="act" class="hidden flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200"></div>
     <div data-r="notice" role="status" class="hidden px-3.5 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium"></div>
@@ -193,7 +223,7 @@
 
   function pointInKabGeo(lat, lng, geoInfo) {
     if (!geoInfo) return true;
-    const pad = 0.0014; // toleransi ~150m untuk pin di jalan perbatasan
+    const pad = 0.0014;
     if (geoInfo.bbox) {
       const [sLat, nLat, wLng, eLng] = geoInfo.bbox;
       if (lat < sLat - pad || lat > nLat + pad || lng < wLng - pad || lng > eLng + pad) return false;
@@ -296,7 +326,7 @@
         }
 
         if (best && best.boundingbox && best.boundingbox.length === 4) {
-          const bb = best.boundingbox.map(Number); // [southLat, northLat, westLng, eastLng]
+          const bb = best.boundingbox.map(Number);
           const hasPoly = best.geojson && (best.geojson.type === 'Polygon' || best.geojson.type === 'MultiPolygon');
           const geoInfo = {
             bbox: bb,
@@ -320,13 +350,11 @@
     if (!geoInfo) return;
 
     if (geoInfo.geojson) {
-      // Halo putih tipis di bawah garis batas agar kontras di peta jalan maupun satelit
       g.L.geoJSON(geoInfo.geojson, {
         interactive: false,
         style: { color: '#ffffff', weight: 5.5, opacity: 0.85, fill: false }
       }).addTo(S.boundaryLayer);
 
-      // Garis batas administratif tegas warna rose
       g.L.geoJSON(geoInfo.geojson, {
         interactive: false,
         style: {
@@ -577,7 +605,9 @@
     } else {
       cur.forEach((r) => { plg += Number(r.Jumlah_Pelanggan || 0); rpv += Number(r.Jumlah_Rupiah || 0); kps.add(String(r.KP || '')); });
     }
-    R('sPlg').textContent = num(plg); R('sKp').textContent = num(kps.size); R('sRp').textContent = rp(rpv);
+    animStat(R('sPlg'), plg, false);
+    animStat(R('sKp'), kps.size, false);
+    animStat(R('sRp'), rpv, true);
     const t = S.f; const reg = t.region === 'ALL' ? 'Semua region' : t.region;
     const extra = S.kp !== 'ALL' ? (S.kab !== 'ALL' ? ` · ${S.kp} (${S.kab})` : ` · ${S.kp}`) : '';
     R('ctx').textContent = `${TIPE[t.tipe] || t.tipe} · ${t.periode === 'ALL' ? 'Semua periode' : t.periode} · ${reg}${extra}`;
@@ -879,10 +909,10 @@
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        #dashboardWrapper { opacity: 1; transform: translateY(0); transition: opacity 0.35s ease-in-out, transform 0.35s ease-in-out; }
-        #dashboardWrapper.is-animating { opacity: 0; transform: translateY(12px); }
+        #dashboardWrapper { opacity: 1; transform: translateY(0); transition: opacity 0.25s ease-in-out, transform 0.25s ease-in-out; }
+        #dashboardWrapper.is-animating { opacity: 0; transform: translateY(10px); }
         @keyframes rowFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-row { animation: rowFadeIn 0.5s ease forwards; opacity: 0; }
+        .animate-row { animation: rowFadeIn 0.45s ease forwards; opacity: 0; }
 
         /* Accordion & Tabel Drill-Down MoM */
         .mom-accordion-grid {
@@ -1002,29 +1032,29 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-emerald-500 border border-slate-100 flex flex-col justify-center">
                     <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Total Keseluruhan Revenue</p>
-                    <h3 id="totalRupiah" class="text-2xl sm:text-3xl font-bold text-emerald-600">Rp 0</h3>
+                    <h3 id="totalRupiah" class="text-2xl sm:text-3xl font-bold text-emerald-600 tabular-nums">Rp 0</h3>
                 </div>
                 <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-indigo-600 border border-slate-100 flex flex-col justify-center">
                     <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Total Keseluruhan Pelanggan</p>
-                    <h3 id="totalTiket" class="text-2xl sm:text-3xl font-bold text-indigo-600">0</h3>
+                    <h3 id="totalTiket" class="text-2xl sm:text-3xl font-bold text-indigo-600 tabular-nums">0</h3>
                 </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-sky-500 border border-slate-100 flex flex-col justify-center">
                     <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Telecollection</p>
-                    <h3 id="teleRev" class="text-xl sm:text-2xl font-bold text-slate-700 mb-1">Rp 0</h3>
-                    <p id="telePlg" class="text-xs sm:text-sm font-medium text-sky-500">0 Pelanggan</p>
+                    <h3 id="teleRev" class="text-xl sm:text-2xl font-bold text-slate-700 mb-1 tabular-nums">Rp 0</h3>
+                    <p id="telePlg" class="text-xs sm:text-sm font-medium text-sky-500 tabular-nums">0 Pelanggan</p>
                 </div>
                 <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-indigo-500 border border-slate-100 flex flex-col justify-center">
                     <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Retention</p>
-                    <h3 id="retRev" class="text-xl sm:text-2xl font-bold text-slate-700 mb-1">Rp 0</h3>
-                    <p id="retPlg" class="text-xs sm:text-sm font-medium text-indigo-500">0 Pelanggan</p>
+                    <h3 id="retRev" class="text-xl sm:text-2xl font-bold text-slate-700 mb-1 tabular-nums">Rp 0</h3>
+                    <p id="retPlg" class="text-xs sm:text-sm font-medium text-indigo-500 tabular-nums">0 Pelanggan</p>
                 </div>
                 <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-emerald-500 border border-slate-100 flex flex-col justify-center">
                     <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Winback</p>
-                    <h3 id="winRev" class="text-xl sm:text-2xl font-bold text-slate-700 mb-1">Rp 0</h3>
-                    <p id="winPlg" class="text-xs sm:text-sm font-medium text-emerald-500">0 Pelanggan</p>
+                    <h3 id="winRev" class="text-xl sm:text-2xl font-bold text-slate-700 mb-1 tabular-nums">Rp 0</h3>
+                    <p id="winPlg" class="text-xs sm:text-sm font-medium text-emerald-500 tabular-nums">0 Pelanggan</p>
                 </div>
             </div>
 
@@ -1122,21 +1152,21 @@
                 <!-- Kartu Biru -->
                 <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-blue-500 border-t border-r border-b border-slate-100 flex flex-col justify-center h-full">
                     <p id="titleTarget" class="text-xs font-semibold uppercase text-slate-400 mb-1">Target Tagihan (Tgl 25)</p>
-                    <h3 id="progTargetRp" class="text-2xl sm:text-3xl font-bold text-slate-700 mb-1">Rp 0</h3>
-                    <p id="progTargetPlg" class="text-xs sm:text-sm font-medium text-blue-500">0 Pelanggan Ditagih</p>
+                    <h3 id="progTargetRp" class="text-2xl sm:text-3xl font-bold text-slate-700 mb-1 tabular-nums">Rp 0</h3>
+                    <p id="progTargetPlg" class="text-xs sm:text-sm font-medium text-blue-500 tabular-nums">0 Pelanggan Ditagih</p>
                 </div>
                 <!-- Kartu Hijau -->
                 <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-emerald-500 border-t border-r border-b border-slate-100 flex flex-col justify-center h-full">
                     <p class="text-xs font-semibold uppercase text-slate-400 mb-1">Sudah Dibayar (Lunas)</p>
-                    <h3 id="progLunasRp" class="text-2xl sm:text-3xl font-bold text-emerald-600 mb-1">Rp 0</h3>
-                    <p id="progLunasPlg" class="text-xs sm:text-sm font-medium text-emerald-500">0 Pelanggan Lunas</p>
+                    <h3 id="progLunasRp" class="text-2xl sm:text-3xl font-bold text-emerald-600 mb-1 tabular-nums">Rp 0</h3>
+                    <p id="progLunasPlg" class="text-xs sm:text-sm font-medium text-emerald-500 tabular-nums">0 Pelanggan Lunas</p>
                 </div>
                 <!-- Kartu Merah -->
                 <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-rose-500 border-t border-r border-b border-slate-100 flex flex-col justify-between h-full gap-4">
                     <div>
                         <p class="text-xs font-semibold uppercase text-rose-400 mb-1">Sisa Tagihan (Tunggakan)</p>
-                        <h3 id="progSisaRp" class="text-2xl sm:text-3xl font-bold text-rose-600 mb-1">Rp 0</h3>
-                        <p id="progSisaPlg" class="text-xs sm:text-sm font-medium text-rose-500">0 Pelanggan Tertunggak</p>
+                        <h3 id="progSisaRp" class="text-2xl sm:text-3xl font-bold text-rose-600 mb-1 tabular-nums">Rp 0</h3>
+                        <p id="progSisaPlg" class="text-xs sm:text-sm font-medium text-rose-500 tabular-nums">0 Pelanggan Tertunggak</p>
 
                         <!-- RINCIAN SISA TAGIHAN -->
                         <div class="mt-4 pt-3 border-t border-dashed border-slate-200 space-y-1.5">
@@ -1147,7 +1177,7 @@
                                     </svg>
                                     Tunggakan Aktif:
                                 </span>
-                                <span id="detAktif" class="text-xs font-bold text-rose-600">0 Plg</span>
+                                <span id="detAktif" class="text-xs font-bold text-rose-600 tabular-nums">0 Plg</span>
                             </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-[11px] font-medium text-slate-500 flex items-center gap-1.5">
@@ -1156,7 +1186,7 @@
                                     </svg>
                                     Batal (Cancel Billing):
                                 </span>
-                                <span id="detBatal" class="text-xs font-bold text-slate-600">0 Plg</span>
+                                <span id="detBatal" class="text-xs font-bold text-slate-600 tabular-nums">0 Plg</span>
                             </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-[11px] font-medium text-slate-500 flex items-center gap-1.5">
@@ -1165,7 +1195,7 @@
                                     </svg>
                                     Batal Deaktivasi:
                                 </span>
-                                <span id="detDeaktif" class="text-xs font-bold text-slate-600">0 Plg</span>
+                                <span id="detDeaktif" class="text-xs font-bold text-slate-600 tabular-nums">0 Plg</span>
                             </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-[11px] font-medium text-slate-500 flex items-center gap-1.5">
@@ -1174,7 +1204,7 @@
                                     </svg>
                                     Batal Lainnya:
                                 </span>
-                                <span id="detLain" class="text-xs font-bold text-slate-400">0 Plg</span>
+                                <span id="detLain" class="text-xs font-bold text-slate-400 tabular-nums">0 Plg</span>
                             </div>
                             <div id="rowLuar" class="hidden">
                                 <div class="flex justify-between items-center">
@@ -1184,7 +1214,7 @@
                                         </svg>
                                         Lunas di Luar Filter Tgl:
                                     </span>
-                                    <span id="detLuar" class="text-xs font-bold text-slate-600">0 Plg</span>
+                                    <span id="detLuar" class="text-xs font-bold text-slate-600 tabular-nums">0 Plg</span>
                                 </div>
                             </div>
                         </div>
@@ -1199,8 +1229,8 @@
                         <h3 class="text-sm font-bold text-slate-700">Pencapaian <span id="labelCapaianTeks">Nasional</span></h3>
                     </div>
                     <div class="flex items-center gap-3">
-                        <span id="momBadge" class="hidden px-2.5 py-1 rounded-lg text-xs font-bold items-center gap-1"></span>
-                        <span id="progBarText" class="text-2xl font-black text-rose-600">0%</span>
+                        <span id="momBadge" class="hidden px-2.5 py-1 rounded-lg text-xs font-bold items-center gap-1 tabular-nums"></span>
+                        <span id="progBarText" class="text-2xl font-black text-rose-600 tabular-nums">0%</span>
                     </div>
                 </div>
                 <div class="w-full bg-slate-100 rounded-full h-5 overflow-hidden border border-slate-200">
@@ -1369,7 +1399,7 @@
         ];
 
         /* ==========================================================
-            HELPER UMUM
+            HELPER UMUM & ENGINE ANIMASI ANGKA BERGERAK
         ========================================================== */
         function escapeHtml(v) {
             return String(v == null ? '' : v)
@@ -1409,25 +1439,212 @@
 
         const formatCompact = (v) => new Intl.NumberFormat('id-ID', { notation: 'compact', maximumFractionDigits: 1 }).format(v || 0);
 
-        const animateCounter = (id, endValue, isCurrency, customTextAfter = "") => {
-            const obj = document.getElementById(id);
+        const prefersReducedMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const resolveEl = (elOrId) => typeof elOrId === 'string' ? document.getElementById(elOrId) : elOrId;
+
+        function formatSignedCurrency(val) {
+            const rounded = Math.round(Number(val) || 0);
+            if (rounded > 0) return '+' + formatRupiah(rounded);
+            if (rounded < 0) return '-' + formatRupiah(Math.abs(rounded));
+            return formatRupiah(0);
+        }
+
+        function formatSignedInt(val) {
+            const rounded = Math.round(Number(val) || 0);
+            if (rounded > 0) return '+' + rounded.toLocaleString('id-ID');
+            if (rounded < 0) return '-' + Math.abs(rounded).toLocaleString('id-ID');
+            return '0';
+        }
+
+        // Animasi angka standar (Rupiah atau Bulat + akhiran teks) dari nilai terakhir ke nilai baru
+        const animateCounter = (elOrId, endValue, isCurrency, customTextAfter = "", fromZero = false) => {
+            const obj = resolveEl(elOrId);
             if (!obj) return;
             endValue = Math.round(Number(endValue) || 0);
-            const token = (obj._animToken = (obj._animToken = (obj._animToken || 0) + 1));
             const suffix = customTextAfter ? " " + customTextAfter : "";
             const fmt = (n) => (isCurrency ? formatRupiah(n) : n.toLocaleString('id-ID')) + suffix;
+
+            if (prefersReducedMotion()) {
+                obj._currentVal = endValue;
+                obj.innerText = fmt(endValue);
+                return;
+            }
+
+            const startValue = fromZero ? 0 : (typeof obj._currentVal === 'number' ? obj._currentVal : 0);
+            if (startValue === endValue) {
+                obj._currentVal = endValue;
+                obj.innerText = fmt(endValue);
+                return;
+            }
+
+            const token = (obj._animToken = (obj._animToken || 0) + 1);
             let startTimestamp = null;
-            const duration = 1200;
+            const duration = 900;
+
             const step = (timestamp) => {
                 if (obj._animToken !== token) return;
                 if (!startTimestamp) startTimestamp = timestamp;
                 const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-                const easeProgress = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
-                obj.innerText = fmt(progress === 1 ? endValue : Math.floor(easeProgress * endValue));
+                const easeProgress = progress === 1 ? 1 : 1 - Math.pow(1 - progress, 4);
+                const current = progress === 1
+                    ? endValue
+                    : Math.round(startValue + (endValue - startValue) * easeProgress);
+                obj._currentVal = current;
+                obj.innerText = fmt(current);
                 if (progress < 1) window.requestAnimationFrame(step);
             };
             window.requestAnimationFrame(step);
         };
+
+        // Animasi angka bertanda (+/- Rp atau +/- angka bulat)
+        const animateSignedCounter = (elOrId, endValue, isCurrency, customTextAfter = "", fromZero = false) => {
+            const obj = resolveEl(elOrId);
+            if (!obj) return;
+            endValue = Math.round(Number(endValue) || 0);
+            const suffix = customTextAfter ? " " + customTextAfter : "";
+            const fmt = (n) => (isCurrency ? formatSignedCurrency(n) : formatSignedInt(n)) + suffix;
+
+            if (prefersReducedMotion()) {
+                obj._currentVal = endValue;
+                obj.innerText = fmt(endValue);
+                return;
+            }
+
+            const startValue = fromZero ? 0 : (typeof obj._currentVal === 'number' ? obj._currentVal : 0);
+            if (startValue === endValue) {
+                obj._currentVal = endValue;
+                obj.innerText = fmt(endValue);
+                return;
+            }
+
+            const token = (obj._animToken = (obj._animToken || 0) + 1);
+            let startTimestamp = null;
+            const duration = 900;
+
+            const step = (timestamp) => {
+                if (obj._animToken !== token) return;
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                const easeProgress = progress === 1 ? 1 : 1 - Math.pow(1 - progress, 4);
+                const current = progress === 1
+                    ? endValue
+                    : Math.round(startValue + (endValue - startValue) * easeProgress);
+                obj._currentVal = current;
+                obj.innerText = fmt(current);
+                if (progress < 1) window.requestAnimationFrame(step);
+            };
+            window.requestAnimationFrame(step);
+        };
+
+        // Animasi angka persentase (misal 85.2%, +6.2%, ▲ 5.1%)
+        const animatePercentCounter = (elOrId, endPct, opts = {}) => {
+            const obj = resolveEl(elOrId);
+            if (!obj) return;
+            const target = Number(endPct) || 0;
+            const { prefix = '', suffix = '%', showSign = false, decimals = 1, fromZero = false } = opts;
+
+            const fmt = (v) => {
+                const sign = showSign ? (v >= 0 ? '+' : '-') : (v < 0 ? '-' : '');
+                const absVal = Math.abs(v).toFixed(decimals);
+                return `${prefix}${sign}${absVal}${suffix}`;
+            };
+
+            if (prefersReducedMotion()) {
+                obj._currentPct = target;
+                obj.innerText = fmt(target);
+                return;
+            }
+
+            const startValue = fromZero ? 0 : (typeof obj._currentPct === 'number' ? obj._currentPct : 0);
+            if (Math.abs(startValue - target) < 0.01) {
+                obj._currentPct = target;
+                obj.innerText = fmt(target);
+                return;
+            }
+
+            const token = (obj._animPctToken = (obj._animPctToken || 0) + 1);
+            let startTimestamp = null;
+            const duration = 900;
+
+            const step = (timestamp) => {
+                if (obj._animPctToken !== token) return;
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                const easeProgress = progress === 1 ? 1 : 1 - Math.pow(1 - progress, 4);
+                const current = progress === 1
+                    ? target
+                    : startValue + (target - startValue) * easeProgress;
+                obj._currentPct = current;
+                obj.innerText = fmt(current);
+                if (progress < 1) window.requestAnimationFrame(step);
+            };
+            window.requestAnimationFrame(step);
+        };
+
+        // Animasi gabungan selisih + persentase pada kartu MoM atas (misal +Rp 884.497.837 (6.1%))
+        const animateDiffWithPercent = (elOrId, endDiff, endPct, isCurrency, fromZero = false) => {
+            const obj = resolveEl(elOrId);
+            if (!obj) return;
+            const targetDiff = Math.round(Number(endDiff) || 0);
+            const targetPct = Number(endPct) || 0;
+
+            const fmt = (d, p) => {
+                const diffStr = isCurrency ? formatSignedCurrency(d) : formatSignedInt(d);
+                return `${diffStr} (${p.toFixed(1)}%)`;
+            };
+
+            if (prefersReducedMotion()) {
+                obj._currentDiff = targetDiff;
+                obj._currentPct = targetPct;
+                obj.innerText = fmt(targetDiff, targetPct);
+                return;
+            }
+
+            const startDiff = fromZero ? 0 : (typeof obj._currentDiff === 'number' ? obj._currentDiff : 0);
+            const startPct = fromZero ? 0 : (typeof obj._currentPct === 'number' ? obj._currentPct : 0);
+
+            if (startDiff === targetDiff && Math.abs(startPct - targetPct) < 0.01) {
+                obj._currentDiff = targetDiff;
+                obj._currentPct = targetPct;
+                obj.innerText = fmt(targetDiff, targetPct);
+                return;
+            }
+
+            const token = (obj._animComboToken = (obj._animComboToken || 0) + 1);
+            let startTimestamp = null;
+            const duration = 950;
+
+            const step = (timestamp) => {
+                if (obj._animComboToken !== token) return;
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                const easeProgress = progress === 1 ? 1 : 1 - Math.pow(1 - progress, 4);
+                const curDiff = progress === 1 ? targetDiff : Math.round(startDiff + (targetDiff - startDiff) * easeProgress);
+                const curPct = progress === 1 ? targetPct : startPct + (targetPct - startPct) * easeProgress;
+                obj._currentDiff = curDiff;
+                obj._currentPct = curPct;
+                obj.innerText = fmt(curDiff, curPct);
+                if (progress < 1) window.requestAnimationFrame(step);
+            };
+            window.requestAnimationFrame(step);
+        };
+
+        // Jalankan animasi seluruh angka di dalam tabel Drill-Down MoM
+        function animateMomTableNumbers(fromZero = true) {
+            const panel = document.getElementById('momDrilldownPanel');
+            if (!panel) return;
+            panel.querySelectorAll('[data-anim-type]').forEach(el => {
+                const type = el.dataset.animType;
+                const target = Number(el.dataset.target || 0);
+                if (type === 'rp') {
+                    animateCounter(el, target, true, '', fromZero);
+                } else if (type === 'signed-rp') {
+                    animateSignedCounter(el, target, true, '', fromZero);
+                } else if (type === 'signed-pct') {
+                    animatePercentCounter(el, target, { showSign: true, suffix: '%', decimals: 1, fromZero });
+                }
+            });
+        }
 
         const fixTimezone = (value) => {
             if (!value) return "";
@@ -1546,9 +1763,11 @@
                 try {
                     actionCallback();
                 } finally {
-                    setTimeout(() => { wrapper.classList.remove('is-animating'); }, 50);
+                    requestAnimationFrame(() => {
+                        wrapper.classList.remove('is-animating');
+                    });
                 }
-            }, 350);
+            }, 250);
         }
 
         /* ==========================================================
@@ -1959,6 +2178,11 @@
             if (panel) panel.classList.toggle('is-open', isMomExpanded);
             if (chevron) chevron.style.transform = isMomExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
             if (header) header.setAttribute('aria-expanded', String(isMomExpanded));
+
+            // Saat panel dibuka, jalankan animasi angka dari 0 pada seluruh baris tabel
+            if (isMomExpanded) {
+                animateMomTableNumbers(true);
+            }
         }
 
         function sortMomBreakdown(col) {
@@ -1988,12 +2212,6 @@
             regSelect.value = 'ALL';
             isMomExpanded = true;
             applyProgresFilter();
-        }
-
-        function formatSelisihRupiah(diff) {
-            if (diff > 0) return '+' + formatRupiah(diff);
-            if (diff < 0) return '-' + formatRupiah(Math.abs(diff));
-            return formatRupiah(0);
         }
 
         function renderMomBreakdown(typeFilteredData, selectedPeriod, prevPeriod, selectedRegion, startStr, endStr, prevStartStr, prevEndStr) {
@@ -2081,7 +2299,7 @@
 
             let grandPrev = 0, grandCurr = 0;
 
-            bodyEl.innerHTML = items.map(item => {
+            bodyEl.innerHTML = items.map((item, idx) => {
                 grandPrev += item.prevRp;
                 grandCurr += item.currRp;
 
@@ -2097,20 +2315,20 @@
                     : '';
                 const rowCursorClass = isRegionLevel ? 'cursor-pointer group' : '';
 
-                return `<tr ${rowDataAttr} class="hover:bg-white/[0.04] transition-colors ${rowCursorClass}">
+                return `<tr ${rowDataAttr} class="animate-row hover:bg-white/[0.04] transition-colors ${rowCursorClass}" style="animation-delay: ${Math.min(idx, 18) * 28}ms;">
                     <td class="py-2.5 px-4 font-semibold text-slate-100 sticky left-0 bg-slate-900/95 group-hover:bg-slate-800/95 transition-colors">
                         <div class="flex items-center justify-between gap-2">
                             <span class="truncate">${escapeHtml(item.name)}</span>
                             ${isRegionLevel ? '<span class="text-[11px] text-slate-500 group-hover:text-indigo-400 transition-colors">›</span>' : ''}
                         </div>
                     </td>
-                    <td class="py-2.5 px-4 text-right text-slate-300 tabular-nums whitespace-nowrap">${formatRupiah(item.prevRp)}</td>
-                    <td class="py-2.5 px-4 text-right font-semibold text-white tabular-nums whitespace-nowrap">${formatRupiah(item.currRp)}</td>
+                    <td data-anim-type="rp" data-target="${item.prevRp}" class="py-2.5 px-4 text-right text-slate-300 tabular-nums whitespace-nowrap">${formatRupiah(0)}</td>
+                    <td data-anim-type="rp" data-target="${item.currRp}" class="py-2.5 px-4 text-right font-semibold text-white tabular-nums whitespace-nowrap">${formatRupiah(0)}</td>
                     <td class="py-2.5 px-4 text-right tabular-nums whitespace-nowrap">
                         <div class="inline-flex items-center justify-end gap-2">
-                            <span class="font-bold ${diffColor}">${formatSelisihRupiah(item.diffRp)}</span>
-                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${badgeBg}">
-                                ${item.pct >= 0 ? '+' : ''}${item.pct.toFixed(1)}%
+                            <span data-anim-type="signed-rp" data-target="${item.diffRp}" class="font-bold ${diffColor}">${formatSignedCurrency(0)}</span>
+                            <span data-anim-type="signed-pct" data-target="${item.pct.toFixed(2)}" class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${badgeBg}">
+                                +0.0%
                             </span>
                         </div>
                     </td>
@@ -2127,18 +2345,21 @@
             footEl.innerHTML = `
                 <tr>
                     <td class="py-3 px-4 text-white sticky left-0 bg-slate-800 z-10">Grand Total</td>
-                    <td class="py-3 px-4 text-right text-slate-200 tabular-nums whitespace-nowrap">${formatRupiah(grandPrev)}</td>
-                    <td class="py-3 px-4 text-right text-white tabular-nums whitespace-nowrap">${formatRupiah(grandCurr)}</td>
+                    <td data-anim-type="rp" data-target="${grandPrev}" class="py-3 px-4 text-right text-slate-200 tabular-nums whitespace-nowrap">${formatRupiah(0)}</td>
+                    <td data-anim-type="rp" data-target="${grandCurr}" class="py-3 px-4 text-right text-white tabular-nums whitespace-nowrap">${formatRupiah(0)}</td>
                     <td class="py-3 px-4 text-right tabular-nums whitespace-nowrap">
                         <div class="inline-flex items-center justify-end gap-2">
-                            <span class="${grandDiffColor}">${formatSelisihRupiah(grandDiff)}</span>
-                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${grandBadgeBg}">
-                                ${grandPct >= 0 ? '+' : ''}${grandPct.toFixed(1)}%
+                            <span data-anim-type="signed-rp" data-target="${grandDiff}" class="${grandDiffColor}">${formatSignedCurrency(0)}</span>
+                            <span data-anim-type="signed-pct" data-target="${grandPct.toFixed(2)}" class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${grandBadgeBg}">
+                                +0.0%
                             </span>
                         </div>
                     </td>
                 </tr>
             `;
+
+            // Jalankan animasi angka pada seluruh baris & Grand Total
+            animateMomTableNumbers(true);
         }
 
         /* ==========================================================
@@ -2318,25 +2539,32 @@
             const gSisaPlg = gTargetPlg - gLunasPlg;
             const pctCapaian = gTargetPlg > 0 ? (gLunasPlg / gTargetPlg) * 100 : 0;
 
-            animateCounter('progTargetRp', gTargetRp, true); animateCounter('progTargetPlg', gTargetPlg, false, "Pelanggan Ditagih");
-            animateCounter('progLunasRp', gLunasRp, true); animateCounter('progLunasPlg', gLunasPlg, false, "Pelanggan Lunas");
-            animateCounter('progSisaRp', Math.max(0, gSisaRp), true); animateCounter('progSisaPlg', Math.max(0, gSisaPlg), false, "Pelanggan Tertunggak");
+            // Animasi 3 Kartu Utama
+            animateCounter('progTargetRp', gTargetRp, true);
+            animateCounter('progTargetPlg', gTargetPlg, false, "Pelanggan Ditagih");
+            animateCounter('progLunasRp', gLunasRp, true);
+            animateCounter('progLunasPlg', gLunasPlg, false, "Pelanggan Lunas");
+            animateCounter('progSisaRp', Math.max(0, gSisaRp), true);
+            animateCounter('progSisaPlg', Math.max(0, gSisaPlg), false, "Pelanggan Tertunggak");
 
-            document.getElementById('detAktif').innerText = gAktifPlg.toLocaleString('id-ID') + ' Plg';
-            document.getElementById('detBatal').innerText = gBatalPlg.toLocaleString('id-ID') + ' Plg';
-            document.getElementById('detDeaktif').innerText = gDeaktifPlg.toLocaleString('id-ID') + ' Plg';
-            document.getElementById('detLain').innerText = gLainPlg.toLocaleString('id-ID') + ' Plg';
-            document.getElementById('detLuar').innerText = gLuarPlg.toLocaleString('id-ID') + ' Plg';
+            // Animasi Rincian Sisa Tagihan
+            animateCounter('detAktif', gAktifPlg, false, 'Plg');
+            animateCounter('detBatal', gBatalPlg, false, 'Plg');
+            animateCounter('detDeaktif', gDeaktifPlg, false, 'Plg');
+            animateCounter('detLain', gLainPlg, false, 'Plg');
+            animateCounter('detLuar', gLuarPlg, false, 'Plg');
             document.getElementById('rowLuar').classList.toggle('hidden', gLuarPlg === 0);
 
             document.getElementById('labelCapaianTeks').innerText = selectedRegion === 'ALL' ? 'Nasional' : 'Region ' + selectedRegion;
             
+            // Animasi Progress Bar & Persentase
             document.getElementById('progBarFill').style.width = Math.min(pctCapaian, 100).toFixed(1) + "%";
             const barColor = pctCapaian >= 100 ? 'bg-emerald-500' : 'bg-rose-500';
             document.getElementById('progBarFill').className = `h-5 rounded-full transition-all duration-1000 ease-out ${barColor}`;
             const textColor = pctCapaian >= 100 ? 'text-emerald-600' : 'text-rose-600';
-            document.getElementById('progBarText').innerText = pctCapaian.toFixed(1) + "%";
-            document.getElementById('progBarText').className = `text-2xl font-black ${textColor}`;
+            const progBarTextEl = document.getElementById('progBarText');
+            progBarTextEl.className = `text-2xl font-black tabular-nums ${textColor}`;
+            animatePercentCounter(progBarTextEl, pctCapaian, { suffix: '%', decimals: 1 });
 
             const momBadge = document.getElementById('momBadge'), momSummaryCard = document.getElementById('momSummaryCard');
             if (selectedPeriod !== 'ALL') {
@@ -2376,11 +2604,11 @@
                 const pctPlg = prevTotals.totalPlg > 0 ? (diffPlg / prevTotals.totalPlg) * 100 : 0;
                 const pctRp = prevTotals.totalRp > 0 ? (diffRp / prevTotals.totalRp) * 100 : 0;
 
-                const badgeSign = diffPlg >= 0 ? '▲' : '▼';
+                const badgeSign = diffPlg >= 0 ? '▲ ' : '▼ ';
                 const badgeColor = diffPlg >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700';
 
-                momBadge.className = `px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 ${badgeColor}`;
-                momBadge.innerHTML = `${badgeSign} ${Math.abs(pctPlg).toFixed(1)}%`;
+                momBadge.className = `px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 tabular-nums ${badgeColor}`;
+                animatePercentCounter(momBadge, Math.abs(pctPlg), { prefix: badgeSign, suffix: '%', decimals: 1 });
                 momSummaryCard.classList.remove('hidden');
 
                 let subText = "";
@@ -2398,16 +2626,18 @@
                 }
 
                 document.getElementById('momSubTitle').innerText = subText;
-                document.getElementById('momPlgVal').innerText = prevTotals.totalPlg.toLocaleString('id-ID') + ' Plg';
-                document.getElementById('momRpVal').innerText = formatRupiah(prevTotals.totalRp);
+
+                // Animasi Angka Kartu Ringkasan MoM (Kanan Atas)
+                animateCounter('momPlgVal', prevTotals.totalPlg, false, 'Plg');
+                animateCounter('momRpVal', prevTotals.totalRp, true);
 
                 const plgBadgeEl = document.getElementById('momPlgBadge');
-                plgBadgeEl.innerText = `${diffPlg >= 0 ? '+' : ''}${diffPlg.toLocaleString('id-ID')} (${pctPlg.toFixed(1)}%)`;
                 plgBadgeEl.className = `block text-[11px] font-semibold mt-0.5 tabular-nums ${diffPlg >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+                animateDiffWithPercent(plgBadgeEl, diffPlg, pctPlg, false);
 
                 const rpBadgeEl = document.getElementById('momRpBadge');
-                rpBadgeEl.innerText = `${diffRp >= 0 ? '+' : ''}${formatRupiah(diffRp)} (${pctRp.toFixed(1)}%)`;
                 rpBadgeEl.className = `block text-[11px] font-semibold mt-0.5 tabular-nums ${diffRp >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+                animateDiffWithPercent(rpBadgeEl, diffRp, pctRp, true);
 
                 renderMomBreakdown(
                     typeFilteredData,
