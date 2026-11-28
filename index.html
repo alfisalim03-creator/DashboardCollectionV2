@@ -4,26 +4,31 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Pencapaian Collection</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- TAILWIND: pakai CSS hasil kompilasi (tailwind.min.css, taruh sebelah file ini atau tempel isinya ke <style>).
+         Kalau file itu belum ada, otomatis jatuh ke Tailwind CDN sementara supaya tampilan tidak rusak. -->
+    <link rel="stylesheet" href="tailwind.min.css"
+          onerror="var s=document.createElement('script');s.src='https://cdn.tailwindcss.com';document.head.appendChild(s);">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Leaflet.js & MarkerCluster untuk Peta Interaktif -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <!-- Leaflet & MarkerCluster TIDAK dimuat di sini. Dimuat saat tab Progres Tagihan pertama dibuka (lihat ensureLeaflet). -->
     <script>
 /* progres-map.js: modul Peta Tunggakan Aktif untuk tab Progres Tagihan
-   Butuh: Leaflet 1.9.4, leaflet.markercluster 1.5.3 (dist/leaflet.markercluster.js), Tailwind CDN.
+   Butuh: Leaflet 1.9.4, leaflet.markercluster 1.5.3 (dimuat lewat ensureLeaflet), Tailwind.
    API: ProgresMap.mount(sel,{webAppUrl}) / setData(rows) / setProgresData(rows)
-        / setFilter({tipe,periode,region}) / resetKp() / clearCache() / onShow() */
+        / setFilter({tipe,periode,region}) / setLoading(bool) / resetKp() / clearCache() / onShow() */
 (function (g) {
   'use strict';
   const LAT = [-11.2, 6.2], LNG = [94.8, 141.2];
   const TIPE = { prepaid: 'Prabayar', postpaid: 'Pascabayar', all: 'Semua tagihan' };
   const S = { root: null, map: null, layer: null, boundaryLayer: null, box: null, cfg: {}, data: [], progresData: [], ver: 0,
     f: { tipe: 'prepaid', periode: 'ALL', region: 'ALL' }, kp: 'ALL', kab: 'ALL', lastRankKp: null, mode: 'ringkasan',
-    cache: {}, geoCache: {}, kabBounds: null, token: 0, abort: null, sig: '', fs: false, pts: [], timer: 0, hintT: 0, touch: false };
+    cache: {}, geoCache: {}, kabBounds: null, token: 0, abort: null, sig: '', fs: false, pts: [], timer: 0, hintT: 0, touch: false,
+    ready: false, loading: false, _kabVer: -1, _hasKab: false };
 
   const R = (n) => S.root.querySelector('[data-r="' + n + '"]');
   const esc = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -94,8 +99,13 @@
     return '(Tidak Terdeteksi)';
   }
 
+  /* hasil di-cache per versi data supaya tidak memindai seluruh baris di setiap pemanggilan */
   function hasKabColumnInGrid() {
-    return S.data.some((r) => getKabName(r) !== '(Tidak Terdeteksi)');
+    if (S._kabVer !== S.ver) {
+      S._kabVer = S.ver;
+      S._hasKab = S.data.some((r) => getKabName(r) !== '(Tidak Terdeteksi)');
+    }
+    return S._hasKab;
   }
 
   const CSS = `
@@ -106,10 +116,6 @@
   .pm-box.pm-fs{position:fixed;inset:0;z-index:3000;border-radius:0;border:0}
   .pm-box.pm-fs .pm-map{height:100dvh}
   .pm-ctl a{display:flex;align-items:center;justify-content:center;cursor:pointer}
-  .pm-pin-hit{width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:50%;background:transparent}
-  .pm-pin-dot{width:15px;height:15px;background:#e11d48;border:2.5px solid #fff;border-radius:50%;box-shadow:0 0 0 3px rgba(225,29,72,.22),0 2px 5px rgba(0,0,0,.45);transition:transform .16s ease,box-shadow .16s ease,background-color .16s ease;pointer-events:none}
-  .pm-pin-hit:hover .pm-pin-dot,.pm-pin-hit:focus-visible .pm-pin-dot{transform:scale(1.38);background:#be123c;box-shadow:0 0 0 7px rgba(225,29,72,.28),0 3px 8px rgba(0,0,0,.5)}
-  .pm-pin-marker:hover{z-index:900!important}
   .pm-wrap button:focus-visible,.pm-wrap select:focus-visible{outline:2px solid #f43f5e;outline-offset:2px}
   .pm-hint{transition:opacity .3s}
   @keyframes pmCascadeDown{
@@ -121,7 +127,7 @@
     animation:pmCascadeDown .34s cubic-bezier(.22,1,.36,1) forwards;
   }
   @media (prefers-reduced-motion:reduce){
-    .pm-hint,.pm-pin-dot{transition:none}
+    .pm-hint{transition:none}
     .pm-cascade-item{animation:none;opacity:1}
   }`;
 
@@ -223,7 +229,7 @@
 
   function pointInKabGeo(lat, lng, geoInfo) {
     if (!geoInfo) return true;
-    const pad = 0.0014;
+    const pad = 0.002; /* disesuaikan dengan simplifikasi poligon yang lebih kasar (step 0.002) */
     if (geoInfo.bbox) {
       const [sLat, nLat, wLng, eLng] = geoInfo.bbox;
       if (lat < sLat - pad || lat > nLat + pad || lng < wLng - pad || lng > eLng + pad) return false;
@@ -253,7 +259,7 @@
 
   function simplifyGeoJSON(geo) {
     if (!geo) return null;
-    const step = 0.00035;
+    const step = 0.002; /* ± 200 m; sebelumnya 0.00035 (terlalu rapat, berat) */
     if (geo.type === 'Polygon') {
       return { type: 'Polygon', coordinates: geo.coordinates.map((r) => simplifyRing(r, step)) };
     }
@@ -271,7 +277,7 @@
     if (S.geoCache[key] !== undefined) return S.geoCache[key];
 
     try {
-      const saved = sessionStorage.getItem('pm_geo_v2_' + key);
+      const saved = sessionStorage.getItem('pm_geo_v3_' + key);
       if (saved) {
         const parsed = JSON.parse(saved);
         S.geoCache[key] = parsed;
@@ -295,7 +301,8 @@
 
     for (const q of queries) {
       try {
-        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=id&polygon_geojson=1&limit=5&q=${encodeURIComponent(q)}`;
+        /* polygon_threshold: minta Nominatim menyederhanakan poligon di sisi server */
+        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=id&polygon_geojson=1&polygon_threshold=0.003&limit=5&q=${encodeURIComponent(q)}`;
         const res = await fetch(url);
         if (!res.ok) continue;
         const arr = await res.json();
@@ -334,7 +341,7 @@
             geojson: hasPoly ? simplifyGeoJSON(best.geojson) : null
           };
           S.geoCache[key] = geoInfo;
-          try { sessionStorage.setItem('pm_geo_v2_' + key, JSON.stringify(geoInfo)); } catch (_) { /* penuh */ }
+          try { sessionStorage.setItem('pm_geo_v3_' + key, JSON.stringify(geoInfo)); } catch (_) { /* penuh */ }
           return geoInfo;
         }
       } catch (_) { /* abaikan error jaringan */ }
@@ -495,7 +502,7 @@
       rankEl.innerHTML = kpList.map((x, i) => {
         const animAttr = kpChanged ? `class="pm-cascade-item" style="animation-delay:${Math.min(i, 12) * 25}ms"` : '';
         return `<li ${animAttr}>
-        <button type="button" data-kp-pick="${esc(x.kp)}" class="group w-full text-left p-2.5 rounded-xl bg-white border border-slate-100 hover:border-rose-300 hover:bg-rose-50/50 transition-colors shadow-2xs">
+        <button type="button" data-kp-pick="${esc(x.kp)}" class="group w-full text-left p-2.5 rounded-xl bg-white border border-slate-100 hover:border-rose-300 hover:bg-rose-50/50 transition-colors shadow-sm">
           <div class="flex items-start gap-2">
             <span class="w-5 text-center text-[11px] font-bold text-slate-400 mt-0.5">${i + 1}</span>
             <div class="min-w-0 flex-1">
@@ -562,7 +569,7 @@
       const animAttr = kpChanged ? `class="pm-cascade-item" style="animation-delay:${Math.min(i, 15) * 40}ms"` : '';
       return `<li ${animAttr}>
         <button type="button" data-kab-pick="${esc(x.kab)}" aria-pressed="${on}"
-          class="group w-full text-left p-2.5 rounded-xl border transition-all shadow-2xs ${on ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-200' : 'bg-white border-slate-100 hover:border-rose-300 hover:bg-rose-50/50'}">
+          class="group w-full text-left p-2.5 rounded-xl border transition-all shadow-sm ${on ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-200' : 'bg-white border-slate-100 hover:border-rose-300 hover:bg-rose-50/50'}">
           <div class="flex items-start gap-2">
             <span class="w-5 text-center text-[11px] font-bold ${on ? 'text-rose-600' : 'text-slate-400'} mt-0.5">${i + 1}</span>
             <div class="min-w-0 flex-1">
@@ -633,10 +640,10 @@
       </div></div>`;
   }
 
-  function drawSummary(geoInfo) {
+  function drawSummary(geoInfo, list) {
     const grid = {};
     const useGeoFilter = S.kp !== 'ALL' && S.kab !== 'ALL' && !hasKabColumnInGrid() && geoInfo;
-    rows().forEach((r) => {
+    list.forEach((r) => {
       const lat = Number(r.lat_grid), lng = Number(r.lng_grid);
       if (!okXY(lat, lng)) return;
       if (useGeoFilter && !pointInKabGeo(lat, lng, geoInfo)) return;
@@ -652,13 +659,14 @@
       total += p.plg;
       const c = g.L.circleMarker([p.lat, p.lng], { radius: Math.min(22, Math.max(7, Math.sqrt(p.plg) * 1.5)),
         fillColor: col(p.plg), color: '#fff', weight: 1.5, fillOpacity: 0.85 });
-      c.bindTooltip(num(p.plg) + ' pelanggan', { sticky: true });
-      c.bindPopup(summaryPopup(p), { maxWidth: 260 });
+      /* tooltip & popup dibuat lazy (hanya saat dibuka), bukan untuk setiap titik di muka */
+      c.bindTooltip(() => num(p.plg) + ' pelanggan', { sticky: true });
+      c.bindPopup(() => summaryPopup(p), { maxWidth: 260 });
       S.layer.addLayer(c);
     });
     S.pts = pts.map((p) => [p.lat, p.lng]);
     R('foot').textContent = `${num(total)} pelanggan di ${num(pts.length)} titik area`;
-    if (!S.data.length) empty('Data peta belum tersedia', 'Jalankan skrip Colab terbaru, lalu klik Sinkronkan Data.');
+    if (!S.data.length) { if (!S.loading) empty('Data peta belum tersedia', 'Jalankan skrip Colab terbaru, lalu klik Sinkronkan Data.'); }
     else if (!pts.length) empty('Tidak ada titik untuk filter ini', 'Ubah periode, region, KP, atau Kabupaten untuk melihat sebarannya.');
     return pts.length;
   }
@@ -705,7 +713,7 @@
       }
     }
     if (my !== S.token) return;
-    spin(false);
+    spin(S.loading);
     if (pl.error) { notice(pl.error); R('foot').textContent = '0 pin ditampilkan'; return; }
     if (pl.truncated) notice(`Menampilkan ${num(pl.rows.length)} dari ${num(pl.totalMatched)} pelanggan. Pilih KP yang lebih spesifik agar semua titik tampil.`);
 
@@ -723,7 +731,8 @@
     const cg = g.L.markerClusterGroup
       ? g.L.markerClusterGroup({
           chunkedLoading: true,
-          maxClusterRadius: 40,
+          maxClusterRadius: 60,
+          animate: false,
           spiderfyOnMaxZoom: true,
           zoomToBoundsOnClick: true,
           spiderfyDistanceMultiplier: 1.35,
@@ -731,20 +740,15 @@
         })
       : g.L.layerGroup();
 
-    const icon = g.L.divIcon({
-      className: 'pm-pin-marker',
-      html: '<div class="pm-pin-hit"><span class="pm-pin-dot"></span></div>',
-      iconSize: [34, 34],
-      iconAnchor: [17, 17],
-      popupAnchor: [0, -12]
-    });
+    /* circleMarker digambar di canvas (preferCanvas), bukan elemen DOM per pin; popup dibuat saat diklik */
+    const pinStyle = { radius: 7, fillColor: '#e11d48', color: '#fff', weight: 2, fillOpacity: 1 };
 
     const bs = [];
     pinList.forEach((r) => {
       const lat = Number(r[4]), lng = Number(r[5]);
       if (!okXY(lat, lng)) return;
       bs.push([lat, lng]);
-      cg.addLayer(g.L.marker([lat, lng], { icon, riseOnHover: true }).bindPopup(pinPopup(r), { maxWidth: 260 }));
+      cg.addLayer(g.L.circleMarker([lat, lng], pinStyle).bindPopup(() => pinPopup(r), { maxWidth: 260 }));
     });
     S.layer.addLayer(cg); S.pts = bs;
     R('foot').textContent = `${num(bs.length)} pin ditampilkan` + (S.kab !== 'ALL' ? ` (${S.kab})` : '');
@@ -753,7 +757,7 @@
 
   /* ---------- render ---------- */
   async function render(force) {
-    if (!S.map) return;
+    if (!S.map || !S.ready) return;   /* jangan menggambar sebelum filter pertama masuk */
     if (!vis()) { S.sig = ''; return; }
     const sig = [S.f.tipe, S.f.periode, S.f.region, S.kp, S.kab, S.mode, S.ver].join('|');
     if (sig === S.sig && !force) return;
@@ -763,13 +767,14 @@
     S.layer.clearLayers();
     if (S.boundaryLayer) S.boundaryLayer.clearLayers();
     S.kabBounds = null;
-    spin(false); empty(null); notice('');
+    spin(S.loading, S.loading ? 'Memuat data peta...' : undefined); empty(null); notice('');
 
     const all = rows(true, true);
     paintKpSelect(all);
     const selectedKabObj = paintRank(all);
     S.sig = [S.f.tipe, S.f.periode, S.f.region, S.kp, S.kab, S.mode, S.ver].join('|');
-    paintStats(rows(), selectedKabObj); paintAct(); paintSeg(); paintLegend();
+    const cur = rows();
+    paintStats(cur, selectedKabObj); paintAct(); paintSeg(); paintLegend();
 
     let geoInfo = null;
     if (S.kp !== 'ALL' && S.kab !== 'ALL' && S.kab !== '(Tidak Terdeteksi)') {
@@ -784,7 +789,7 @@
     }
 
     if (S.mode === 'ringkasan') {
-      drawSummary(geoInfo);
+      drawSummary(geoInfo, cur);
       if (geoInfo && geoInfo.bounds) {
         S.map.flyToBounds(geoInfo.bounds, { padding: [28, 28], maxZoom: 13, duration: 0.65 });
       } else {
@@ -809,9 +814,7 @@
 
   function toggleFs(on) {
     S.fs = on == null ? !S.fs : on;
-    const w = document.getElementById('dashboardWrapper');
     S.box.classList.toggle('pm-fs', S.fs);
-    if (w) w.style.transform = S.fs ? 'none' : '';
     document.body.style.overflow = S.fs ? 'hidden' : '';
     const b = S.root.querySelector('[data-c="fs"]');
     if (b) { b.innerHTML = S.fs ? I.fsx : I.fs; b.title = b.ariaLabel = S.fs ? 'Keluar layar penuh' : 'Layar penuh'; }
@@ -887,17 +890,18 @@
 
   g.ProgresMap = {
     mount,
-    setData(r) { S.data = r || []; S.ver++; later(); },
-    setProgresData(r) { S.progresData = r || []; S.ver++; later(); },
-    setFilter(f) { Object.assign(S.f, f || {}); later(); },
+    /* setData/setProgresData: abaikan jika array yang sama dikirim ulang (mis. tiap pindah tab) */
+    setData(r) { if (r && r === S.data) return; S.data = r || []; S.ver++; later(); },
+    setProgresData(r) { if (r && r === S.progresData) return; S.progresData = r || []; S.ver++; later(); },
+    setFilter(f) { Object.assign(S.f, f || {}); S.ready = true; later(); },
+    setLoading(on) { on = !!on; if (S.loading === on) return; S.loading = on; S.ver++; later(); },
     resetKp() { S.kp = 'ALL'; S.kab = 'ALL'; later(); },
     clearCache() { S.cache = {}; S.ver++; },
-    onShow() { if (S.map) { setTimeout(() => { S.map.invalidateSize(); S.sig = ''; render(); }, 120); } }
+    onShow() { if (S.map) { setTimeout(() => { S.map.invalidateSize(); render(); }, 120); } }
   };
 })(window);
     </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; margin: 0; }
         .chart-container { position: relative; height: 320px; width: 100%; min-height: 280px; }
         
@@ -909,8 +913,9 @@
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        #dashboardWrapper { opacity: 1; transform: translateY(0); transition: opacity 0.25s ease-in-out, transform 0.25s ease-in-out; }
-        #dashboardWrapper.is-animating { opacity: 0; transform: translateY(10px); }
+        /* Hanya opacity (tanpa transform) supaya murah dan tidak membuat containing block untuk elemen fixed */
+        #dashboardWrapper { opacity: 1; transition: opacity 0.15s ease-out; }
+        #dashboardWrapper.is-animating { opacity: 0; }
         @keyframes rowFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-row { animation: rowFadeIn 0.45s ease forwards; opacity: 0; }
 
@@ -1304,7 +1309,7 @@
                             </div>
 
                             <div class="overflow-x-auto table-scroll rounded-xl border border-slate-700/70 bg-slate-900/70">
-                                <table class="w-full text-left border-collapse min-w-[640px]">
+                                <table class="w-full text-left border-collapse table-fixed min-w-[720px]">
                                     <thead>
                                         <tr id="momBreakdownHead" class="bg-slate-800/90 border-b border-slate-700 text-[11px] uppercase tracking-wider text-slate-300">
                                             <!-- Diisi dinamis oleh JS -->
@@ -1334,7 +1339,7 @@
                 <div class="chart-container"><canvas id="progresTrenChart"></canvas></div>
             </div>
 
-            <!-- PETA SEBARAN TUNGGAKAN AKTIF (modul progres-map.js) -->
+            <!-- PETA SEBARAN TUNGGAKAN AKTIF (modul progres-map.js; Leaflet dimuat saat tab ini dibuka) -->
             <div id="progresMapMount"></div>
 
             <!-- LEADERBOARD REGION -->
@@ -1367,12 +1372,16 @@
         
         Chart.defaults.scale.grid.color = '#f1f5f9'; 
         Chart.defaults.font.family = "'Inter', sans-serif"; 
+        Chart.defaults.animation.duration = 250;   // default 1000 ms: terasa lambat karena chart dibuat ulang di setiap filter
         
         let allData = { sla3: [], sla4: [], progres: [], petaRingkasan: [] };
         let rawData = [];
         let currentTab = 'sla3';
         let currentBillingType = 'prepaid';
         let trenChartInst = null, regionChartInst = null, progresTrenChartInst = null;
+
+        // Status data peta ringkasan (boleh datang dari payload utama, atau diambil terpisah saat tab Progres dibuka)
+        const petaState = { loaded: false, refresh: false, promise: null };
 
         let lbSortCol = 'default';
         let lbSortAsc = false;
@@ -1397,6 +1406,43 @@
             { kw: 'reten',  rev: 'retRev',  plg: 'retPlg'  },
             { kw: 'win',    rev: 'winRev',  plg: 'winPlg'  }
         ];
+
+        /* ==========================================================
+            LEAFLET: DIMUAT HANYA SAAT DIBUTUHKAN (TAB PROGRES)
+        ========================================================== */
+        const LEAFLET_CSS = [
+            'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+            'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css',
+            'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css'
+        ];
+        const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+        const MARKERCLUSTER_JS = 'https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js';
+        let leafletPromise = null;
+
+        function loadScriptOnce(src) {
+            return new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = src;
+                s.onload = resolve;
+                s.onerror = () => { s.remove(); reject(new Error('Gagal memuat ' + src)); };
+                document.head.appendChild(s);
+            });
+        }
+
+        function ensureLeaflet() {
+            if (window.L && window.L.markerClusterGroup) return Promise.resolve();
+            if (leafletPromise) return leafletPromise;
+            LEAFLET_CSS.forEach((href, i) => {
+                if (document.getElementById('lf-css-' + i)) return;
+                const l = document.createElement('link');
+                l.id = 'lf-css-' + i; l.rel = 'stylesheet'; l.href = href;
+                document.head.appendChild(l);
+            });
+            leafletPromise = (window.L ? Promise.resolve() : loadScriptOnce(LEAFLET_JS))
+                .then(() => (window.L.markerClusterGroup ? null : loadScriptOnce(MARKERCLUSTER_JS)))
+                .catch((err) => { leafletPromise = null; throw err; });
+            return leafletPromise;
+        }
 
         /* ==========================================================
             HELPER UMUM & ENGINE ANIMASI ANGKA BERGERAK
@@ -1456,6 +1502,33 @@
             return '0';
         }
 
+        // Satu loop requestAnimationFrame bersama untuk SEMUA animasi angka (bukan satu loop per elemen)
+        const _anims = new Set();
+        let _rafId = 0;
+        function _runAnims(ts) {
+            _rafId = 0;
+            _anims.forEach(fn => { if (!fn(ts)) _anims.delete(fn); });
+            if (_anims.size) _rafId = window.requestAnimationFrame(_runAnims);
+        }
+        function addAnim(fn) {
+            _anims.add(fn);
+            if (!_rafId) _rafId = window.requestAnimationFrame(_runAnims);
+        }
+
+        // Tween generik: membatalkan animasi lama pada elemen yang sama lewat token
+        function runTween(obj, tokenKey, duration, onFrame) {
+            const token = (obj[tokenKey] = (obj[tokenKey] || 0) + 1);
+            let t0 = null;
+            addAnim((ts) => {
+                if (obj[tokenKey] !== token) return false;
+                if (t0 === null) t0 = ts;
+                const p = Math.min((ts - t0) / duration, 1);
+                const ease = p === 1 ? 1 : 1 - Math.pow(1 - p, 4);
+                onFrame(ease, p === 1);
+                return p < 1;
+            });
+        }
+
         // Animasi angka standar (Rupiah atau Bulat + akhiran teks) dari nilai terakhir ke nilai baru
         const animateCounter = (elOrId, endValue, isCurrency, customTextAfter = "", fromZero = false) => {
             const obj = resolveEl(elOrId);
@@ -1464,36 +1537,19 @@
             const suffix = customTextAfter ? " " + customTextAfter : "";
             const fmt = (n) => (isCurrency ? formatRupiah(n) : n.toLocaleString('id-ID')) + suffix;
 
-            if (prefersReducedMotion()) {
-                obj._currentVal = endValue;
-                obj.innerText = fmt(endValue);
-                return;
-            }
-
             const startValue = fromZero ? 0 : (typeof obj._currentVal === 'number' ? obj._currentVal : 0);
-            if (startValue === endValue) {
+            if (prefersReducedMotion() || startValue === endValue) {
+                obj._animToken = (obj._animToken || 0) + 1;
                 obj._currentVal = endValue;
-                obj.innerText = fmt(endValue);
+                obj.textContent = fmt(endValue);
                 return;
             }
 
-            const token = (obj._animToken = (obj._animToken || 0) + 1);
-            let startTimestamp = null;
-            const duration = 900;
-
-            const step = (timestamp) => {
-                if (obj._animToken !== token) return;
-                if (!startTimestamp) startTimestamp = timestamp;
-                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-                const easeProgress = progress === 1 ? 1 : 1 - Math.pow(1 - progress, 4);
-                const current = progress === 1
-                    ? endValue
-                    : Math.round(startValue + (endValue - startValue) * easeProgress);
-                obj._currentVal = current;
-                obj.innerText = fmt(current);
-                if (progress < 1) window.requestAnimationFrame(step);
-            };
-            window.requestAnimationFrame(step);
+            runTween(obj, '_animToken', 900, (e, done) => {
+                const cur = done ? endValue : Math.round(startValue + (endValue - startValue) * e);
+                obj._currentVal = cur;
+                obj.textContent = fmt(cur);
+            });
         };
 
         // Animasi angka bertanda (+/- Rp atau +/- angka bulat)
@@ -1504,36 +1560,19 @@
             const suffix = customTextAfter ? " " + customTextAfter : "";
             const fmt = (n) => (isCurrency ? formatSignedCurrency(n) : formatSignedInt(n)) + suffix;
 
-            if (prefersReducedMotion()) {
-                obj._currentVal = endValue;
-                obj.innerText = fmt(endValue);
-                return;
-            }
-
             const startValue = fromZero ? 0 : (typeof obj._currentVal === 'number' ? obj._currentVal : 0);
-            if (startValue === endValue) {
+            if (prefersReducedMotion() || startValue === endValue) {
+                obj._animToken = (obj._animToken || 0) + 1;
                 obj._currentVal = endValue;
-                obj.innerText = fmt(endValue);
+                obj.textContent = fmt(endValue);
                 return;
             }
 
-            const token = (obj._animToken = (obj._animToken || 0) + 1);
-            let startTimestamp = null;
-            const duration = 900;
-
-            const step = (timestamp) => {
-                if (obj._animToken !== token) return;
-                if (!startTimestamp) startTimestamp = timestamp;
-                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-                const easeProgress = progress === 1 ? 1 : 1 - Math.pow(1 - progress, 4);
-                const current = progress === 1
-                    ? endValue
-                    : Math.round(startValue + (endValue - startValue) * easeProgress);
-                obj._currentVal = current;
-                obj.innerText = fmt(current);
-                if (progress < 1) window.requestAnimationFrame(step);
-            };
-            window.requestAnimationFrame(step);
+            runTween(obj, '_animToken', 900, (e, done) => {
+                const cur = done ? endValue : Math.round(startValue + (endValue - startValue) * e);
+                obj._currentVal = cur;
+                obj.textContent = fmt(cur);
+            });
         };
 
         // Animasi angka persentase (misal 85.2%, +6.2%, ▲ 5.1%)
@@ -1549,36 +1588,19 @@
                 return `${prefix}${sign}${absVal}${suffix}`;
             };
 
-            if (prefersReducedMotion()) {
-                obj._currentPct = target;
-                obj.innerText = fmt(target);
-                return;
-            }
-
             const startValue = fromZero ? 0 : (typeof obj._currentPct === 'number' ? obj._currentPct : 0);
-            if (Math.abs(startValue - target) < 0.01) {
+            if (prefersReducedMotion() || Math.abs(startValue - target) < 0.01) {
+                obj._animPctToken = (obj._animPctToken || 0) + 1;
                 obj._currentPct = target;
-                obj.innerText = fmt(target);
+                obj.textContent = fmt(target);
                 return;
             }
 
-            const token = (obj._animPctToken = (obj._animPctToken || 0) + 1);
-            let startTimestamp = null;
-            const duration = 900;
-
-            const step = (timestamp) => {
-                if (obj._animPctToken !== token) return;
-                if (!startTimestamp) startTimestamp = timestamp;
-                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-                const easeProgress = progress === 1 ? 1 : 1 - Math.pow(1 - progress, 4);
-                const current = progress === 1
-                    ? target
-                    : startValue + (target - startValue) * easeProgress;
-                obj._currentPct = current;
-                obj.innerText = fmt(current);
-                if (progress < 1) window.requestAnimationFrame(step);
-            };
-            window.requestAnimationFrame(step);
+            runTween(obj, '_animPctToken', 900, (e, done) => {
+                const cur = done ? target : startValue + (target - startValue) * e;
+                obj._currentPct = cur;
+                obj.textContent = fmt(cur);
+            });
         };
 
         // Animasi gabungan selisih + persentase pada kartu MoM atas (misal +Rp 884.497.837 (6.1%))
@@ -1593,43 +1615,27 @@
                 return `${diffStr} (${p.toFixed(1)}%)`;
             };
 
-            if (prefersReducedMotion()) {
-                obj._currentDiff = targetDiff;
-                obj._currentPct = targetPct;
-                obj.innerText = fmt(targetDiff, targetPct);
-                return;
-            }
-
             const startDiff = fromZero ? 0 : (typeof obj._currentDiff === 'number' ? obj._currentDiff : 0);
             const startPct = fromZero ? 0 : (typeof obj._currentPct === 'number' ? obj._currentPct : 0);
 
-            if (startDiff === targetDiff && Math.abs(startPct - targetPct) < 0.01) {
+            if (prefersReducedMotion() || (startDiff === targetDiff && Math.abs(startPct - targetPct) < 0.01)) {
+                obj._animComboToken = (obj._animComboToken || 0) + 1;
                 obj._currentDiff = targetDiff;
                 obj._currentPct = targetPct;
-                obj.innerText = fmt(targetDiff, targetPct);
+                obj.textContent = fmt(targetDiff, targetPct);
                 return;
             }
 
-            const token = (obj._animComboToken = (obj._animComboToken || 0) + 1);
-            let startTimestamp = null;
-            const duration = 950;
-
-            const step = (timestamp) => {
-                if (obj._animComboToken !== token) return;
-                if (!startTimestamp) startTimestamp = timestamp;
-                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-                const easeProgress = progress === 1 ? 1 : 1 - Math.pow(1 - progress, 4);
-                const curDiff = progress === 1 ? targetDiff : Math.round(startDiff + (targetDiff - startDiff) * easeProgress);
-                const curPct = progress === 1 ? targetPct : startPct + (targetPct - startPct) * easeProgress;
+            runTween(obj, '_animComboToken', 950, (e, done) => {
+                const curDiff = done ? targetDiff : Math.round(startDiff + (targetDiff - startDiff) * e);
+                const curPct = done ? targetPct : startPct + (targetPct - startPct) * e;
                 obj._currentDiff = curDiff;
                 obj._currentPct = curPct;
-                obj.innerText = fmt(curDiff, curPct);
-                if (progress < 1) window.requestAnimationFrame(step);
-            };
-            window.requestAnimationFrame(step);
+                obj.textContent = fmt(curDiff, curPct);
+            });
         };
 
-        // Jalankan animasi seluruh angka di dalam tabel Drill-Down MoM
+        // Jalankan animasi angka yang ditandai data-anim-type di dalam tabel Drill-Down MoM (kini hanya baris Grand Total)
         function animateMomTableNumbers(fromZero = true) {
             const panel = document.getElementById('momDrilldownPanel');
             if (!panel) return;
@@ -1686,8 +1692,8 @@
         ========================================================== */
         function showLoading(title, text) {
             const overlay = document.getElementById('loadingOverlay');
-            document.getElementById('loadingTitle').innerText = title;
-            document.getElementById('loadingText').innerText = text;
+            document.getElementById('loadingTitle').textContent = title;
+            document.getElementById('loadingText').textContent = text;
             if (overlay) overlay.classList.remove('hidden');
         }
 
@@ -1709,7 +1715,7 @@
             } else if ((currentTab === 'sla3' || currentTab === 'sla4') && allData.sla3.length > 0 && allData.sla3[0].Waktu_Update) {
                 actualUpdateTime = allData.sla3[0].Waktu_Update + ' WIB';
             }
-            document.getElementById('lastUpdatedText').innerText = actualUpdateTime;
+            document.getElementById('lastUpdatedText').textContent = actualUpdateTime;
         }
 
         async function fetchData(forceRefresh) {
@@ -1722,12 +1728,44 @@
             allData.sla3 = parseMatrixToObjects(res.sla3).map(row => { row['Tanggal'] = fixTimezone(row['Tanggal']); return row; });
             allData.sla4 = parseMatrixToObjects(res.sla4).map(row => { row['Tanggal'] = fixTimezone(row['Tanggal']); return row; });
             allData.progres = parseMatrixToObjects(res.progres).map(row => { row['Tanggal_Bayar_Saja'] = fixTimezone(row['Tanggal_Bayar_Saja']); return row; });
-            allData.petaRingkasan = parseMatrixToObjects(res.petaRingkasan || []);
+
+            // Data peta: kalau server masih mengirimnya di payload utama, pakai langsung.
+            // Kalau tidak (endpoint terpisah), ia diambil saat tab Progres dibuka (ensurePetaData).
+            const hasPeta = Array.isArray(res.petaRingkasan) && res.petaRingkasan.length > 1;
+            if (hasPeta) {
+                allData.petaRingkasan = parseMatrixToObjects(res.petaRingkasan);
+                ProgresMap.setData(allData.petaRingkasan);
+            }
+            petaState.loaded = hasPeta;
+            petaState.refresh = !!forceRefresh;
+
             if (forceRefresh) ProgresMap.clearCache();
-            ProgresMap.setData(allData.petaRingkasan);
             ProgresMap.setProgresData(allData.progres);
 
             updateDisplayWaktuSync();
+        }
+
+        function ensurePetaData() {
+            if (petaState.loaded) return Promise.resolve();
+            if (petaState.promise) return petaState.promise;
+            ProgresMap.setLoading(true);
+            const url = WEB_APP_URL + "?action=petaRingkasan&" + (petaState.refresh ? "refresh=true&" : "") + "nocache=" + Date.now();
+            petaState.promise = fetch(url)
+                .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+                .then(res => {
+                    if (res && res.error) throw new Error(res.error);
+                    const matrix = Array.isArray(res) ? res : (res && res.petaRingkasan) || [];
+                    allData.petaRingkasan = parseMatrixToObjects(matrix);
+                    petaState.loaded = true;
+                    petaState.refresh = false;
+                    ProgresMap.setData(allData.petaRingkasan);
+                })
+                .catch(err => console.warn("Gagal memuat data peta:", err))
+                .finally(() => {
+                    petaState.promise = null;
+                    ProgresMap.setLoading(false);
+                });
+            return petaState.promise;
         }
 
         async function loadAllData() {
@@ -1756,6 +1794,7 @@
             }
         }
 
+        // Fade ringan (hanya opacity) untuk pindah tab / jenis tagihan. Filter biasa TIDAK memakai ini.
         function triggerActionAnimation(actionCallback) {
             const wrapper = document.getElementById('dashboardWrapper');
             wrapper.classList.add('is-animating');
@@ -1767,7 +1806,7 @@
                         wrapper.classList.remove('is-animating');
                     });
                 }
-            }, 250);
+            }, 120);
         }
 
         /* ==========================================================
@@ -1794,13 +1833,13 @@
                     periodSelect.innerHTML = '<option value="ALL">Semua Periode</option>';
                     const periods = [...new Set(rawData.map(row => getPeriodFromDate(row['Tanggal'])).filter(Boolean))];
                     periods.sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
-                    periods.forEach(p => { const opt = document.createElement('option'); opt.value = p; opt.innerText = p; periodSelect.appendChild(opt); });
+                    periods.forEach(p => { const opt = document.createElement('option'); opt.value = p; opt.textContent = p; periodSelect.appendChild(opt); });
                     periodSelect.value = 'ALL';
 
                     const regions = [...new Set(rawData.map(row => row.Region).filter(Boolean))].sort();
                     const regionSelect = document.getElementById('filterRegion');
                     regionSelect.innerHTML = '<option value="ALL">Semua Region</option>';
-                    regions.forEach(reg => { const opt = document.createElement('option'); opt.value = reg; opt.innerText = reg; regionSelect.appendChild(opt); });
+                    regions.forEach(reg => { const opt = document.createElement('option'); opt.value = reg; opt.textContent = reg; regionSelect.appendChild(opt); });
                     regionSelect.value = 'ALL';
 
                     setDefaultSlaDates();
@@ -1845,8 +1884,9 @@
             applyFilterWithoutAnimation();
         }
 
+        // Filter biasa: langsung diterapkan, tanpa fade/jeda
         function applyFilter() {
-            triggerActionAnimation(() => { applyFilterWithoutAnimation(); });
+            applyFilterWithoutAnimation();
         }
 
         function applyFilterWithoutAnimation() {
@@ -2179,7 +2219,7 @@
             if (chevron) chevron.style.transform = isMomExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
             if (header) header.setAttribute('aria-expanded', String(isMomExpanded));
 
-            // Saat panel dibuka, jalankan animasi angka dari 0 pada seluruh baris tabel
+            // Saat panel dibuka, jalankan animasi angka dari 0 (hanya baris Grand Total yang beranimasi)
             if (isMomExpanded) {
                 animateMomTableNumbers(true);
             }
@@ -2228,11 +2268,11 @@
             const bodyEl = document.getElementById('momBreakdownBody');
             const footEl = document.getElementById('momBreakdownFoot');
 
-            if (hintEl) hintEl.innerText = isRegionLevel ? 'Rincian per Region' : `Rincian per KP (${selectedRegion})`;
-            if (titleEl) titleEl.innerText = isRegionLevel
+            if (hintEl) hintEl.textContent = isRegionLevel ? 'Rincian per Region' : `Rincian per KP (${selectedRegion})`;
+            if (titleEl) titleEl.textContent = isRegionLevel
                 ? `Perbandingan Revenue Seluruh Region (${prevPeriod} vs ${selectedPeriod})`
                 : `Perbandingan Revenue per KP — Region ${selectedRegion} (${prevPeriod} vs ${selectedPeriod})`;
-            if (noteEl) noteEl.innerText = isRegionLevel
+            if (noteEl) noteEl.textContent = isRegionLevel
                 ? 'Klik nama Region untuk melihat rincian per KP'
                 : `Menampilkan seluruh KP pada Region ${selectedRegion}`;
             if (backRegBtn) backRegBtn.classList.toggle('hidden', isRegionLevel);
@@ -2282,23 +2322,25 @@
                     : '<span class="text-indigo-400 ml-1">↓</span>';
             };
 
+            // Tabel memakai table-fixed, jadi lebar kolom ditentukan di sini (persen)
             headEl.innerHTML = `
-                <th onclick="sortMomBreakdown('name')" class="py-3 px-4 font-semibold cursor-pointer hover:bg-slate-700/60 transition-colors sticky left-0 bg-slate-800 z-10 w-4/12">
+                <th onclick="sortMomBreakdown('name')" class="py-3 px-4 font-semibold cursor-pointer hover:bg-slate-700/60 transition-colors sticky left-0 bg-slate-800 z-10 w-[22%]">
                     ${areaLabel} ${sortIcon('name')}
                 </th>
-                <th onclick="sortMomBreakdown('prev')" class="py-3 px-4 font-semibold text-right cursor-pointer hover:bg-slate-700/60 transition-colors whitespace-nowrap w-3/12">
+                <th onclick="sortMomBreakdown('prev')" class="py-3 px-4 font-semibold text-right cursor-pointer hover:bg-slate-700/60 transition-colors whitespace-nowrap w-[24%]">
                     Revenue ${escapeHtml(prevPeriod)} ${sortIcon('prev')}
                 </th>
-                <th onclick="sortMomBreakdown('curr')" class="py-3 px-4 font-semibold text-right cursor-pointer hover:bg-slate-700/60 transition-colors whitespace-nowrap w-3/12">
+                <th onclick="sortMomBreakdown('curr')" class="py-3 px-4 font-semibold text-right cursor-pointer hover:bg-slate-700/60 transition-colors whitespace-nowrap w-[24%]">
                     Revenue ${escapeHtml(selectedPeriod)} ${sortIcon('curr')}
                 </th>
-                <th onclick="sortMomBreakdown('diff')" class="py-3 px-4 font-semibold text-right cursor-pointer hover:bg-slate-700/60 transition-colors whitespace-nowrap w-2/12">
+                <th onclick="sortMomBreakdown('diff')" class="py-3 px-4 font-semibold text-right cursor-pointer hover:bg-slate-700/60 transition-colors whitespace-nowrap w-[30%]">
                     Selisih Revenue ${sortIcon('diff')}
                 </th>
             `;
 
             let grandPrev = 0, grandCurr = 0;
 
+            // Baris biasa langsung menampilkan nilai akhir (tanpa animasi per sel)
             bodyEl.innerHTML = items.map((item, idx) => {
                 grandPrev += item.prevRp;
                 grandCurr += item.currRp;
@@ -2309,6 +2351,7 @@
                 const badgeBg = isPos ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
                               : isNeg ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
                               : 'bg-slate-700/50 text-slate-300 border-slate-600';
+                const pctText = (item.pct >= 0 ? '+' : '-') + Math.abs(item.pct).toFixed(1) + '%';
 
                 const rowDataAttr = isRegionLevel
                     ? `data-mom-region="${escapeHtml(item.name)}" title="Klik untuk lihat rincian KP di ${escapeHtml(item.name)}"`
@@ -2322,14 +2365,12 @@
                             ${isRegionLevel ? '<span class="text-[11px] text-slate-500 group-hover:text-indigo-400 transition-colors">›</span>' : ''}
                         </div>
                     </td>
-                    <td data-anim-type="rp" data-target="${item.prevRp}" class="py-2.5 px-4 text-right text-slate-300 tabular-nums whitespace-nowrap">${formatRupiah(0)}</td>
-                    <td data-anim-type="rp" data-target="${item.currRp}" class="py-2.5 px-4 text-right font-semibold text-white tabular-nums whitespace-nowrap">${formatRupiah(0)}</td>
+                    <td class="py-2.5 px-4 text-right text-slate-300 tabular-nums whitespace-nowrap">${formatRupiah(item.prevRp)}</td>
+                    <td class="py-2.5 px-4 text-right font-semibold text-white tabular-nums whitespace-nowrap">${formatRupiah(item.currRp)}</td>
                     <td class="py-2.5 px-4 text-right tabular-nums whitespace-nowrap">
                         <div class="inline-flex items-center justify-end gap-2">
-                            <span data-anim-type="signed-rp" data-target="${item.diffRp}" class="font-bold ${diffColor}">${formatSignedCurrency(0)}</span>
-                            <span data-anim-type="signed-pct" data-target="${item.pct.toFixed(2)}" class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${badgeBg}">
-                                +0.0%
-                            </span>
+                            <span class="font-bold ${diffColor}">${formatSignedCurrency(item.diffRp)}</span>
+                            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${badgeBg}">${pctText}</span>
                         </div>
                     </td>
                 </tr>`;
@@ -2342,6 +2383,7 @@
                                : grandDiff < 0 ? 'bg-rose-500/20 text-rose-300 border-rose-400/30'
                                : 'bg-slate-700 text-slate-300 border-slate-600';
 
+            // Hanya Grand Total yang dianimasikan
             footEl.innerHTML = `
                 <tr>
                     <td class="py-3 px-4 text-white sticky left-0 bg-slate-800 z-10">Grand Total</td>
@@ -2358,8 +2400,8 @@
                 </tr>
             `;
 
-            // Jalankan animasi angka pada seluruh baris & Grand Total
-            animateMomTableNumbers(true);
+            // Jangan menganimasikan tabel yang sedang tertutup; ia dianimasikan saat panel dibuka
+            if (isMomExpanded) animateMomTableNumbers(true);
         }
 
         /* ==========================================================
@@ -2380,7 +2422,7 @@
             const regionSelect = document.getElementById('progFilterRegion');
             regionSelect.innerHTML = '<option value="ALL">Semua Region</option>';
             const regions = [...new Set(allData.progres.map(row => row['Region']).filter(Boolean))].sort();
-            regions.forEach(r => { const opt = document.createElement('option'); opt.value = r; opt.innerText = r; regionSelect.appendChild(opt); });
+            regions.forEach(r => { const opt = document.createElement('option'); opt.value = r; opt.textContent = r; regionSelect.appendChild(opt); });
             regionSelect.value = 'ALL';
             
             const initTypeData = allData.progres;
@@ -2400,8 +2442,21 @@
                 });
             }
 
-            ProgresMap.mount('#progresMapMount', { webAppUrl: WEB_APP_URL });
-            ProgresMap.setProgresData(allData.progres);
+            // Peta: muat Leaflet (sekali) lalu pasang modul. Urutan dengan setFilter di bawah tidak penting.
+            ensureLeaflet()
+                .then(() => {
+                    ProgresMap.mount('#progresMapMount', { webAppUrl: WEB_APP_URL });
+                    ProgresMap.setProgresData(allData.progres);
+                })
+                .catch((err) => {
+                    console.error(err);
+                    const m = document.getElementById('progresMapMount');
+                    if (m && !m.firstChild) {
+                        m.innerHTML = '<div class="bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium rounded-2xl px-4 py-3">Peta gagal dimuat (Leaflet tidak bisa diunduh). Periksa koneksi atau pemblokiran unpkg.com, lalu buka tab ini lagi.</div>';
+                    }
+                });
+            ensurePetaData();
+
             setBillingType('prepaid', false);
         }
 
@@ -2415,9 +2470,9 @@
             document.getElementById('btnAllType').className = type === 'all' ? actClass.replace('text-rose-600', 'text-sky-600') : inactClass;
 
             const titleTarget = document.getElementById('titleTarget');
-            if (type === 'prepaid') titleTarget.innerText = "Target Tagihan Prabayar (Tgl 25)";
-            else if (type === 'postpaid') titleTarget.innerText = "Target Tagihan Pascabayar (Tgl 1)";
-            else titleTarget.innerText = "Total Keseluruhan Tagihan";
+            if (type === 'prepaid') titleTarget.textContent = "Target Tagihan Prabayar (Tgl 25)";
+            else if (type === 'postpaid') titleTarget.textContent = "Target Tagihan Pascabayar (Tgl 1)";
+            else titleTarget.textContent = "Total Keseluruhan Tagihan";
 
             updateDropdownsForBillingType();
             
@@ -2437,7 +2492,7 @@
             periodSelect.innerHTML = '<option value="ALL">Semua Periode</option>';
             const periods = [...new Set(typeFilteredData.map(row => row['Periode']).filter(Boolean))];
             periods.sort((a, b) => parsePeriodeToDate(b) - parsePeriodeToDate(a));
-            periods.forEach(p => { const opt = document.createElement('option'); opt.value = p; opt.innerText = p; periodSelect.appendChild(opt); });
+            periods.forEach(p => { const opt = document.createElement('option'); opt.value = p; opt.textContent = p; periodSelect.appendChild(opt); });
         }
 
         function onPeriodChange() {
@@ -2555,7 +2610,7 @@
             animateCounter('detLuar', gLuarPlg, false, 'Plg');
             document.getElementById('rowLuar').classList.toggle('hidden', gLuarPlg === 0);
 
-            document.getElementById('labelCapaianTeks').innerText = selectedRegion === 'ALL' ? 'Nasional' : 'Region ' + selectedRegion;
+            document.getElementById('labelCapaianTeks').textContent = selectedRegion === 'ALL' ? 'Nasional' : 'Region ' + selectedRegion;
             
             // Animasi Progress Bar & Persentase
             document.getElementById('progBarFill').style.width = Math.min(pctCapaian, 100).toFixed(1) + "%";
@@ -2625,7 +2680,7 @@
                     subText = `Dibandingkan dengan ${prevPeriod} ${siklusTeks}`;
                 }
 
-                document.getElementById('momSubTitle').innerText = subText;
+                document.getElementById('momSubTitle').textContent = subText;
 
                 // Animasi Angka Kartu Ringkasan MoM (Kanan Atas)
                 animateCounter('momPlgVal', prevTotals.totalPlg, false, 'Plg');
