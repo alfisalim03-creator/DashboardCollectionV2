@@ -28,7 +28,7 @@
   const S = { root: null, map: null, layer: null, boundaryLayer: null, box: null, cfg: {}, data: [], progresData: [], ver: 0,
     f: { tipe: 'prepaid', periode: 'ALL', region: 'ALL' }, kp: 'ALL', kab: 'ALL', lastRankKp: null, mode: 'ringkasan',
     cache: {}, geoCache: {}, kabBounds: null, token: 0, abort: null, sig: '', fs: false, pts: [], timer: 0, hintT: 0, touch: false,
-    ready: false, loading: false, _kabVer: -1, _hasKab: false, inflight: {}, prefetchT: 0, gen: 0 };
+    ready: false, loading: false, _kabVer: -1, _hasKab: false };
 
   const R = (n) => S.root.querySelector('[data-r="' + n + '"]');
   const esc = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -209,25 +209,8 @@
     return inside;
   }
 
-  const BB = new WeakMap();
-  function ringBBox(ring) {
-    let b = BB.get(ring);
-    if (!b) {
-      b = [Infinity, Infinity, -Infinity, -Infinity];
-      for (let i = 0; i < ring.length; i++) {
-        const x = ring[i][0], y = ring[i][1];
-        if (x < b[0]) b[0] = x; if (y < b[1]) b[1] = y;
-        if (x > b[2]) b[2] = x; if (y > b[3]) b[3] = y;
-      }
-      BB.set(ring, b);
-    }
-    return b;
-  }
-
   function pointInPolygonCoords(lng, lat, polyCoords) {
     if (!polyCoords || !polyCoords.length) return false;
-    const bb = ringBBox(polyCoords[0]);
-    if (lng < bb[0] || lng > bb[2] || lat < bb[1] || lat > bb[3]) return false;
     if (!pointInRing(lng, lat, polyCoords[0])) return false;
     for (let i = 1; i < polyCoords.length; i++) {
       if (pointInRing(lng, lat, polyCoords[i])) return false;
@@ -706,56 +689,25 @@
       </div></div>`;
   }
 
-  /* ---------- pin pelanggan: unduh, cache, prefetch ---------- */
-  function pinKey() { const f = S.f; return [f.region, S.kp, f.tipe, f.periode].join('|'); }
-
-  /* Satu request per key; request yang sedang berjalan dipakai bersama (tidak diunduh dua kali) */
-  function fetchPins(key) {
-    if (S.cache[key]) return Promise.resolve(S.cache[key]);
-    if (S.inflight[key]) return S.inflight[key];
-    const { tipe, periode, region } = S.f, gen = S.gen;
-    const u = `${S.cfg.webAppUrl}?action=petaDetail&region=${encodeURIComponent(region)}&kp=${encodeURIComponent(S.kp)}&tipe=${encodeURIComponent(tipe)}&periode=${encodeURIComponent(periode)}&nocache=${Date.now()}`;
-    const p = fetch(u)
-      .then((res) => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
-      .then((pl) => {
-        if (!pl.error && gen === S.gen) {
-          S.cache[key] = pl;
-          const ks = Object.keys(S.cache);
-          if (ks.length > 6) delete S.cache[ks[0]];   /* simpan paling banyak 6 KP di memori */
-        }
-        return pl;
-      })
-      .finally(() => { if (S.inflight[key] === p) delete S.inflight[key]; });
-    p._key = key;
-    S.inflight[key] = p;
-    return p;
-  }
-
-  /* Saat sebuah KP dipilih di mode ringkasan dan dibiarkan sebentar, pin-nya diunduh diam-diam
-     supaya klik "Pin pelanggan" terasa instan. */
-  function schedulePrefetch() {
-    clearTimeout(S.prefetchT);
-    if (S.mode !== 'ringkasan' || S.kp === 'ALL') return;
-    const key = pinKey();
-    if (S.cache[key] || S.inflight[key]) return;
-    S.prefetchT = setTimeout(() => {
-      if (S.mode === 'ringkasan' && S.kp !== 'ALL' && pinKey() === key && vis()) fetchPins(key).catch(() => {});
-    }, 700);
-  }
-
-  async function drawPins(my, geoInfo, pp) {
+  async function drawPins(my, geoInfo) {
     if (S.f.region === 'ALL' && S.kp === 'ALL') {
       empty('Pilih KP untuk melihat pin', 'Pilih dari daftar area terpadat atau dropdown KP agar peta tidak terlalu padat.', S.top, true);
       R('foot').textContent = 'Menunggu pilihan KP'; S.pts = []; return;
     }
-    const key = pinKey();
+    const { tipe, periode, region } = S.f;
+    const key = [region, S.kp, tipe, periode].join('|');
     let pl = S.cache[key];
     if (!pl) {
-      spin(true, 'Memuat pin ' + (S.kp !== 'ALL' ? S.kp : S.f.region) + '...');
+      spin(true, 'Memuat pin ' + (S.kp !== 'ALL' ? S.kp : region) + '...');
+      const ac = (S.abort = new AbortController());
       try {
-        pl = await ((pp && pp._key === key) ? pp : fetchPins(key));
+        const u = `${S.cfg.webAppUrl}?action=petaDetail&region=${encodeURIComponent(region)}&kp=${encodeURIComponent(S.kp)}&tipe=${encodeURIComponent(tipe)}&periode=${encodeURIComponent(periode)}&nocache=${Date.now()}`;
+        const res = await fetch(u, { signal: ac.signal });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        pl = await res.json();
+        if (!pl.error) S.cache[key] = pl;
       } catch (err) {
-        if (my !== S.token) return;
+        if (err.name === 'AbortError' || my !== S.token) return;
         spin(false); notice('Gagal memuat pin pelanggan: ' + err.message + '. Coba lagi dengan memilih KP yang sama.');
         S.sig = ''; return;
       }
@@ -776,25 +728,9 @@
       }
     }
 
-    /* circleMarker digambar di canvas; baris data disimpan di marker, popup dibuat SATU kali saat diklik */
-    const pinStyle = { radius: 7, fillColor: '#e11d48', color: '#fff', weight: 2, fillOpacity: 1 };
-    const bs = [], ms = [];
-    pinList.forEach((r) => {
-      const lat = Number(r[4]), lng = Number(r[5]);
-      if (!okXY(lat, lng)) return;
-      bs.push([lat, lng]);
-      const m = g.L.circleMarker([lat, lng], pinStyle);
-      m._pmRow = r;
-      ms.push(m);
-    });
-
-    const finalText = `${num(bs.length)} pin ditampilkan` + (S.kab !== 'ALL' ? ` (${S.kab})` : '');
-    const grp = g.L.markerClusterGroup
+    const cg = g.L.markerClusterGroup
       ? g.L.markerClusterGroup({
           chunkedLoading: true,
-          chunkProgress: (done, total) => {
-            R('foot').textContent = done < total ? `Menggambar ${num(done)} dari ${num(total)} pin...` : finalText;
-          },
           maxClusterRadius: 60,
           animate: false,
           spiderfyOnMaxZoom: true,
@@ -802,15 +738,20 @@
           spiderfyDistanceMultiplier: 1.35,
           showCoverageOnHover: false
         })
-      : g.L.featureGroup();
-    grp.on('click', (e) => {
-      const m = e.layer;
-      if (!m || !m._pmRow) return;
-      g.L.popup({ maxWidth: 260 }).setLatLng(m.getLatLng()).setContent(pinPopup(m._pmRow)).openOn(S.map);
+      : g.L.layerGroup();
+
+    /* circleMarker digambar di canvas (preferCanvas), bukan elemen DOM per pin; popup dibuat saat diklik */
+    const pinStyle = { radius: 7, fillColor: '#e11d48', color: '#fff', weight: 2, fillOpacity: 1 };
+
+    const bs = [];
+    pinList.forEach((r) => {
+      const lat = Number(r[4]), lng = Number(r[5]);
+      if (!okXY(lat, lng)) return;
+      bs.push([lat, lng]);
+      cg.addLayer(g.L.circleMarker([lat, lng], pinStyle).bindPopup(() => pinPopup(r), { maxWidth: 260 }));
     });
-    if (grp.addLayers) grp.addLayers(ms); else ms.forEach((m) => grp.addLayer(m));   /* bulk add jauh lebih cepat dari addLayer satu-satu */
-    S.layer.addLayer(grp); S.pts = bs;
-    R('foot').textContent = finalText;
+    S.layer.addLayer(cg); S.pts = bs;
+    R('foot').textContent = `${num(bs.length)} pin ditampilkan` + (S.kab !== 'ALL' ? ` (${S.kab})` : '');
     if (!bs.length) empty('Tidak ada koordinat valid', 'Pelanggan di filter ini belum punya titik koordinat di dalam batas ' + (S.kab !== 'ALL' ? S.kab : 'area ini') + '.', null, true);
   }
 
@@ -827,17 +768,6 @@
     if (S.boundaryLayer) S.boundaryLayer.clearLayers();
     S.kabBounds = null;
     spin(S.loading, S.loading ? 'Memuat data peta...' : undefined); empty(null); notice('');
-
-    /* Mulai mengunduh pin SEKARANG, tidak menunggu pencarian batas Kabupaten (Nominatim) selesai */
-    let pinsP = null;
-    if (S.mode === 'detail' && !(S.f.region === 'ALL' && S.kp === 'ALL')) {
-      const k = pinKey();
-      if (!S.cache[k]) {
-        spin(true, 'Memuat pin ' + (S.kp !== 'ALL' ? S.kp : S.f.region) + '...');
-        pinsP = fetchPins(k);
-        pinsP.catch(() => {});
-      }
-    }
 
     const all = rows(true, true);
     paintKpSelect(all);
@@ -865,13 +795,11 @@
       } else {
         fitTo(S.pts, 13);
       }
-      schedulePrefetch();
     } else {
-      await drawPins(my, geoInfo, pinsP);
+      await drawPins(my, geoInfo);
       if (my === S.token) {
         if (geoInfo && geoInfo.bounds) {
-          /* tanpa animasi terbang: menghindari render ulang puluhan frame saat pin banyak */
-          S.map.fitBounds(geoInfo.bounds, { padding: [28, 28], maxZoom: 13, animate: false });
+          S.map.flyToBounds(geoInfo.bounds, { padding: [28, 28], maxZoom: 13, duration: 0.65 });
         } else {
           fitTo(S.pts, 16);
         }
@@ -968,7 +896,7 @@
     setFilter(f) { Object.assign(S.f, f || {}); S.ready = true; later(); },
     setLoading(on) { on = !!on; if (S.loading === on) return; S.loading = on; S.ver++; later(); },
     resetKp() { S.kp = 'ALL'; S.kab = 'ALL'; later(); },
-    clearCache() { S.cache = {}; S.inflight = {}; S.gen++; S.ver++; },
+    clearCache() { S.cache = {}; S.ver++; },
     onShow() { if (S.map) { setTimeout(() => { S.map.invalidateSize(); render(); }, 120); } }
   };
 })(window);
