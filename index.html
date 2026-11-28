@@ -25,6 +25,10 @@
   'use strict';
   const LAT = [-11.2, 6.2], LNG = [94.8, 141.2];
   const TIPE = { prepaid: 'Prabayar', postpaid: 'Pascabayar', all: 'Semua tagihan' };
+  const GEO_CACHE_PREFIX = 'pm_geo_v3_';
+  const GEO_INDEX_KEY = 'pm_geo_v3_index';
+  const GEO_MAX_ITEMS = 30;
+
   const S = { root: null, map: null, layer: null, boundaryLayer: null, box: null, cfg: {}, data: [], progresData: [], ver: 0,
     f: { tipe: 'prepaid', periode: 'ALL', region: 'ALL' }, kp: 'ALL', kab: 'ALL', lastRankKp: null, mode: 'ringkasan',
     cache: {}, geoCache: {}, kabBounds: null, token: 0, abort: null, sig: '', fs: false, pts: [], timer: 0, hintT: 0, touch: false,
@@ -99,7 +103,6 @@
     return '(Tidak Terdeteksi)';
   }
 
-  /* hasil di-cache per versi data supaya tidak memindai seluruh baris di setiap pemanggilan */
   function hasKabColumnInGrid() {
     if (S._kabVer !== S.ver) {
       S._kabVer = S.ver;
@@ -229,7 +232,7 @@
 
   function pointInKabGeo(lat, lng, geoInfo) {
     if (!geoInfo) return true;
-    const pad = 0.002; /* disesuaikan dengan simplifikasi poligon yang lebih kasar (step 0.002) */
+    const pad = 0.002;
     if (geoInfo.bbox) {
       const [sLat, nLat, wLng, eLng] = geoInfo.bbox;
       if (lat < sLat - pad || lat > nLat + pad || lng < wLng - pad || lng > eLng + pad) return false;
@@ -259,7 +262,7 @@
 
   function simplifyGeoJSON(geo) {
     if (!geo) return null;
-    const step = 0.002; /* ± 200 m; sebelumnya 0.00035 (terlalu rapat, berat) */
+    const step = 0.002;
     if (geo.type === 'Polygon') {
       return { type: 'Polygon', coordinates: geo.coordinates.map((r) => simplifyRing(r, step)) };
     }
@@ -269,21 +272,54 @@
     return null;
   }
 
-  /* ---------- geocoding batas kabupaten (GeoJSON + BoundingBox) ---------- */
+  /* ---------- cache LRU localStorage & geocoding batas kabupaten ---------- */
+  function getGeoCache(key) {
+    try {
+      const raw = localStorage.getItem(GEO_CACHE_PREFIX + key);
+      if (!raw) return null;
+      const idx = JSON.parse(localStorage.getItem(GEO_INDEX_KEY) || '[]').filter((k) => k !== key);
+      idx.push(key);
+      localStorage.setItem(GEO_INDEX_KEY, JSON.stringify(idx));
+      return JSON.parse(raw);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function setGeoCache(key, geoData) {
+    try {
+      const idx = JSON.parse(localStorage.getItem(GEO_INDEX_KEY) || '[]').filter((k) => k !== key);
+      while (idx.length >= GEO_MAX_ITEMS) {
+        const oldestKey = idx.shift();
+        if (oldestKey) localStorage.removeItem(GEO_CACHE_PREFIX + oldestKey);
+      }
+      localStorage.setItem(GEO_CACHE_PREFIX + key, JSON.stringify(geoData));
+      idx.push(key);
+      localStorage.setItem(GEO_INDEX_KEY, JSON.stringify(idx));
+    } catch (e) {
+      if (e && e.name === 'QuotaExceededError') {
+        try {
+          const idx = JSON.parse(localStorage.getItem(GEO_INDEX_KEY) || '[]');
+          idx.forEach((k) => localStorage.removeItem(GEO_CACHE_PREFIX + k));
+          localStorage.removeItem(GEO_INDEX_KEY);
+          localStorage.setItem(GEO_CACHE_PREFIX + key, JSON.stringify(geoData));
+          localStorage.setItem(GEO_INDEX_KEY, JSON.stringify([key]));
+        } catch (_) { /* abaikan jika storage diblokir */ }
+      }
+    }
+  }
+
   async function fetchKabGeo(kabName) {
     const clean = cleanKabLabel(kabName);
     if (!clean || clean === '(Tidak Terdeteksi)') return null;
     const key = normalizeKabKey(clean);
     if (S.geoCache[key] !== undefined) return S.geoCache[key];
 
-    try {
-      const saved = sessionStorage.getItem('pm_geo_v3_' + key);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        S.geoCache[key] = parsed;
-        return parsed;
-      }
-    } catch (_) { /* abaikan storage error */ }
+    const cached = getGeoCache(key);
+    if (cached) {
+      S.geoCache[key] = cached;
+      return cached;
+    }
 
     const isKab = /^KAB(\.|\s|UPATEN)/i.test(clean);
     const isKota = /^KOTA\s+/i.test(clean);
@@ -301,7 +337,6 @@
 
     for (const q of queries) {
       try {
-        /* polygon_threshold: minta Nominatim menyederhanakan poligon di sisi server */
         const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=id&polygon_geojson=1&polygon_threshold=0.003&limit=5&q=${encodeURIComponent(q)}`;
         const res = await fetch(url);
         if (!res.ok) continue;
@@ -341,7 +376,7 @@
             geojson: hasPoly ? simplifyGeoJSON(best.geojson) : null
           };
           S.geoCache[key] = geoInfo;
-          try { sessionStorage.setItem('pm_geo_v3_' + key, JSON.stringify(geoInfo)); } catch (_) { /* penuh */ }
+          setGeoCache(key, geoInfo);
           return geoInfo;
         }
       } catch (_) { /* abaikan error jaringan */ }
@@ -659,7 +694,6 @@
       total += p.plg;
       const c = g.L.circleMarker([p.lat, p.lng], { radius: Math.min(22, Math.max(7, Math.sqrt(p.plg) * 1.5)),
         fillColor: col(p.plg), color: '#fff', weight: 1.5, fillOpacity: 0.85 });
-      /* tooltip & popup dibuat lazy (hanya saat dibuka), bukan untuk setiap titik di muka */
       c.bindTooltip(() => num(p.plg) + ' pelanggan', { sticky: true });
       c.bindPopup(() => summaryPopup(p), { maxWidth: 260 });
       S.layer.addLayer(c);
@@ -740,7 +774,6 @@
         })
       : g.L.layerGroup();
 
-    /* circleMarker digambar di canvas (preferCanvas), bukan elemen DOM per pin; popup dibuat saat diklik */
     const pinStyle = { radius: 7, fillColor: '#e11d48', color: '#fff', weight: 2, fillOpacity: 1 };
 
     const bs = [];
@@ -757,7 +790,7 @@
 
   /* ---------- render ---------- */
   async function render(force) {
-    if (!S.map || !S.ready) return;   /* jangan menggambar sebelum filter pertama masuk */
+    if (!S.map || !S.ready) return;
     if (!vis()) { S.sig = ''; return; }
     const sig = [S.f.tipe, S.f.periode, S.f.region, S.kp, S.kab, S.mode, S.ver].join('|');
     if (sig === S.sig && !force) return;
@@ -890,18 +923,40 @@
 
   g.ProgresMap = {
     mount,
-    /* setData/setProgresData: abaikan jika array yang sama dikirim ulang (mis. tiap pindah tab) */
     setData(r) { if (r && r === S.data) return; S.data = r || []; S.ver++; later(); },
     setProgresData(r) { if (r && r === S.progresData) return; S.progresData = r || []; S.ver++; later(); },
     setFilter(f) { Object.assign(S.f, f || {}); S.ready = true; later(); },
     setLoading(on) { on = !!on; if (S.loading === on) return; S.loading = on; S.ver++; later(); },
     resetKp() { S.kp = 'ALL'; S.kab = 'ALL'; later(); },
     clearCache() { S.cache = {}; S.ver++; },
-    onShow() { if (S.map) { setTimeout(() => { S.map.invalidateSize(); render(); }, 120); } }
+    onShow() {
+      if (S.map) {
+        setTimeout(() => {
+          S.map.invalidateSize();
+          S.sig = '';
+          render(true);
+        }, 120);
+      }
+    }
   };
 })(window);
     </script>
     <style>
+        /* Fallback dasar agar tidak terjadi FOUC sebelum tailwind.min.css / CDN selesai dimuat */
+        .hidden { display: none !important; }
+        #loadingOverlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding-top: 4rem;
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(4px);
+        }
+
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; margin: 0; }
         .chart-container { position: relative; height: 320px; width: 100%; min-height: 280px; }
         
@@ -1372,7 +1427,7 @@
         
         Chart.defaults.scale.grid.color = '#f1f5f9'; 
         Chart.defaults.font.family = "'Inter', sans-serif"; 
-        Chart.defaults.animation.duration = 250;   // default 1000 ms: terasa lambat karena chart dibuat ulang di setiap filter
+        Chart.defaults.animation.duration = 250;
         
         let allData = { sla3: [], sla4: [], progres: [], petaRingkasan: [] };
         let rawData = [];
@@ -1380,7 +1435,6 @@
         let currentBillingType = 'prepaid';
         let trenChartInst = null, regionChartInst = null, progresTrenChartInst = null;
 
-        // Status data peta ringkasan (boleh datang dari payload utama, atau diambil terpisah saat tab Progres dibuka)
         const petaState = { loaded: false, refresh: false, promise: null };
 
         let lbSortCol = 'default';
@@ -1445,8 +1499,32 @@
         }
 
         /* ==========================================================
-            HELPER UMUM & ENGINE ANIMASI ANGKA BERGERAK
+            HELPER UMUM, CHART UPSERT & ENGINE ANIMASI ANGKA BERGERAK
         ========================================================== */
+        function upsertChart(existingChart, canvasEl, config) {
+            if (!canvasEl) return existingChart;
+            if (existingChart && existingChart.canvas === canvasEl && document.body.contains(canvasEl)) {
+                existingChart.data.labels = config.data.labels;
+                config.data.datasets.forEach((ds, i) => {
+                    if (existingChart.data.datasets[i]) {
+                        Object.assign(existingChart.data.datasets[i], ds);
+                    } else {
+                        existingChart.data.datasets[i] = ds;
+                    }
+                });
+                existingChart.data.datasets.length = config.data.datasets.length;
+                if (config.options) {
+                    existingChart.options = config.options;
+                }
+                existingChart.update();
+                return existingChart;
+            }
+            if (existingChart) {
+                existingChart.destroy();
+            }
+            return new Chart(canvasEl, config);
+        }
+
         function escapeHtml(v) {
             return String(v == null ? '' : v)
                 .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -1502,7 +1580,7 @@
             return '0';
         }
 
-        // Satu loop requestAnimationFrame bersama untuk SEMUA animasi angka (bukan satu loop per elemen)
+        // Satu loop requestAnimationFrame bersama untuk SEMUA animasi angka
         const _anims = new Set();
         let _rafId = 0;
         function _runAnims(ts) {
@@ -1515,7 +1593,6 @@
             if (!_rafId) _rafId = window.requestAnimationFrame(_runAnims);
         }
 
-        // Tween generik: membatalkan animasi lama pada elemen yang sama lewat token
         function runTween(obj, tokenKey, duration, onFrame) {
             const token = (obj[tokenKey] = (obj[tokenKey] || 0) + 1);
             let t0 = null;
@@ -1529,7 +1606,6 @@
             });
         }
 
-        // Animasi angka standar (Rupiah atau Bulat + akhiran teks) dari nilai terakhir ke nilai baru
         const animateCounter = (elOrId, endValue, isCurrency, customTextAfter = "", fromZero = false) => {
             const obj = resolveEl(elOrId);
             if (!obj) return;
@@ -1552,7 +1628,6 @@
             });
         };
 
-        // Animasi angka bertanda (+/- Rp atau +/- angka bulat)
         const animateSignedCounter = (elOrId, endValue, isCurrency, customTextAfter = "", fromZero = false) => {
             const obj = resolveEl(elOrId);
             if (!obj) return;
@@ -1575,7 +1650,6 @@
             });
         };
 
-        // Animasi angka persentase (misal 85.2%, +6.2%, ▲ 5.1%)
         const animatePercentCounter = (elOrId, endPct, opts = {}) => {
             const obj = resolveEl(elOrId);
             if (!obj) return;
@@ -1603,7 +1677,6 @@
             });
         };
 
-        // Animasi gabungan selisih + persentase pada kartu MoM atas (misal +Rp 884.497.837 (6.1%))
         const animateDiffWithPercent = (elOrId, endDiff, endPct, isCurrency, fromZero = false) => {
             const obj = resolveEl(elOrId);
             if (!obj) return;
@@ -1635,7 +1708,6 @@
             });
         };
 
-        // Jalankan animasi angka yang ditandai data-anim-type di dalam tabel Drill-Down MoM (kini hanya baris Grand Total)
         function animateMomTableNumbers(fromZero = true) {
             const panel = document.getElementById('momDrilldownPanel');
             if (!panel) return;
@@ -1729,8 +1801,6 @@
             allData.sla4 = parseMatrixToObjects(res.sla4).map(row => { row['Tanggal'] = fixTimezone(row['Tanggal']); return row; });
             allData.progres = parseMatrixToObjects(res.progres).map(row => { row['Tanggal_Bayar_Saja'] = fixTimezone(row['Tanggal_Bayar_Saja']); return row; });
 
-            // Data peta: kalau server masih mengirimnya di payload utama, pakai langsung.
-            // Kalau tidak (endpoint terpisah), ia diambil saat tab Progres dibuka (ensurePetaData).
             const hasPeta = Array.isArray(res.petaRingkasan) && res.petaRingkasan.length > 1;
             if (hasPeta) {
                 allData.petaRingkasan = parseMatrixToObjects(res.petaRingkasan);
@@ -1772,12 +1842,12 @@
             showLoading("Memuat Dashboard", "Sinkronisasi data dari server...");
             try {
                 await fetchData(false);
-                switchTab('sla3');
+                switchTab('sla3', true);
             } catch (error) {
                 console.error("Gagal memuat data:", error);
                 alert("Gagal memuat data dari server: " + error.message);
             } finally {
-                hideLoading();
+                requestAnimationFrame(() => hideLoading());
             }
         }
 
@@ -1785,16 +1855,15 @@
             showLoading("Menyinkronkan Data", "Mengambil data terbaru...");
             try {
                 await fetchData(true);
-                switchTab(currentTab);
+                switchTab(currentTab, true);
             } catch (error) {
                 console.error("Gagal refresh data:", error);
                 alert("Gagal menyinkronkan data: " + error.message);
             } finally {
-                hideLoading();
+                requestAnimationFrame(() => hideLoading());
             }
         }
 
-        // Fade ringan (hanya opacity) untuk pindah tab / jenis tagihan. Filter biasa TIDAK memakai ini.
         function triggerActionAnimation(actionCallback) {
             const wrapper = document.getElementById('dashboardWrapper');
             wrapper.classList.add('is-animating');
@@ -1812,8 +1881,8 @@
         /* ==========================================================
             TAB UTAMA
         ========================================================== */
-        function switchTab(tab) {
-            triggerActionAnimation(() => {
+        function switchTab(tab, skipAnim = false) {
+            const runSwitch = () => {
                 currentTab = tab;
                 const btn3 = document.getElementById('btnSla3'), btnP = document.getElementById('btnProgres');
                 const slaBox = document.getElementById('slaContainer'), progBox = document.getElementById('progresContainer');
@@ -1851,7 +1920,13 @@
                 }
 
                 updateDisplayWaktuSync();
-            });
+            };
+
+            if (skipAnim) {
+                runSwitch();
+            } else {
+                triggerActionAnimation(runSwitch);
+            }
         }
 
         /* ==========================================================
@@ -1884,7 +1959,6 @@
             applyFilterWithoutAnimation();
         }
 
-        // Filter biasa: langsung diterapkan, tanpa fade/jeda
         function applyFilter() {
             applyFilterWithoutAnimation();
         }
@@ -1933,8 +2007,6 @@
         }
 
         function renderTrenChart(rows) {
-            if (trenChartInst) { trenChartInst.destroy(); trenChartInst = null; }
-
             const periods = [...new Set(rows.map(r => getPeriodFromDate(r['Tanggal'])).filter(Boolean))];
             const daily = periods.length <= 1;
             const map = {};
@@ -1959,7 +2031,7 @@
                 document.getElementById('trenChartTitle').innerHTML = `${svgIcon} Tren Pencapaian Bulanan`;
             }
 
-            trenChartInst = new Chart(document.getElementById('trenChart'), {
+            trenChartInst = upsertChart(trenChartInst, document.getElementById('trenChart'), {
                 type: 'line',
                 data: { labels, datasets: [{ data: keys.map(k => map[k]), borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,0.1)', borderWidth: 2, fill: true, tension: 0.3 }] },
                 options: {
@@ -1972,8 +2044,6 @@
         }
 
         function renderRegionChart(rows, selectedRegion) {
-            if (regionChartInst) { regionChartInst.destroy(); regionChartInst = null; }
-
             const isAllRegion = (String(selectedRegion || 'ALL').toUpperCase() === 'ALL');
             const map = {};
 
@@ -1996,7 +2066,7 @@
 
             const colors = sorted.map(() => isAllRegion ? '#6366f1' : '#10b981');
 
-            regionChartInst = new Chart(document.getElementById('regionChart'), {
+            regionChartInst = upsertChart(regionChartInst, document.getElementById('regionChart'), {
                 type: 'bar',
                 data: { 
                     labels: sorted.map(e => e[0]), 
@@ -2016,6 +2086,7 @@
                     }
                 }
             });
+            if (regionChartInst) regionChartInst.resize();
         }
         
         function sortLeaderboard(col) {
@@ -2219,7 +2290,6 @@
             if (chevron) chevron.style.transform = isMomExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
             if (header) header.setAttribute('aria-expanded', String(isMomExpanded));
 
-            // Saat panel dibuka, jalankan animasi angka dari 0 (hanya baris Grand Total yang beranimasi)
             if (isMomExpanded) {
                 animateMomTableNumbers(true);
             }
@@ -2322,7 +2392,6 @@
                     : '<span class="text-indigo-400 ml-1">↓</span>';
             };
 
-            // Tabel memakai table-fixed, jadi lebar kolom ditentukan di sini (persen)
             headEl.innerHTML = `
                 <th onclick="sortMomBreakdown('name')" class="py-3 px-4 font-semibold cursor-pointer hover:bg-slate-700/60 transition-colors sticky left-0 bg-slate-800 z-10 w-[22%]">
                     ${areaLabel} ${sortIcon('name')}
@@ -2340,7 +2409,6 @@
 
             let grandPrev = 0, grandCurr = 0;
 
-            // Baris biasa langsung menampilkan nilai akhir (tanpa animasi per sel)
             bodyEl.innerHTML = items.map((item, idx) => {
                 grandPrev += item.prevRp;
                 grandCurr += item.currRp;
@@ -2383,7 +2451,6 @@
                                : grandDiff < 0 ? 'bg-rose-500/20 text-rose-300 border-rose-400/30'
                                : 'bg-slate-700 text-slate-300 border-slate-600';
 
-            // Hanya Grand Total yang dianimasikan
             footEl.innerHTML = `
                 <tr>
                     <td class="py-3 px-4 text-white sticky left-0 bg-slate-800 z-10">Grand Total</td>
@@ -2400,7 +2467,6 @@
                 </tr>
             `;
 
-            // Jangan menganimasikan tabel yang sedang tertutup; ia dianimasikan saat panel dibuka
             if (isMomExpanded) animateMomTableNumbers(true);
         }
 
@@ -2408,7 +2474,7 @@
             TAB PROGRES TAGIHAN
         ========================================================== */
         const isLunasRow = (row) => String(row['Status'] || '').trim().toUpperCase() === 'LUNAS';
-        const hasPayDate = (row) => { const t = row['Tanggal_Bayar_Saja']; return !!t && t !== 'Belum Bayar'; };
+        const hasPayDate = (row) => /^\d{4}-\d{2}-\d{2}$/.test(String(row['Tanggal_Bayar_Saja'] || '').trim());
         const inRange = (tgl, startStr, endStr) => !(startStr && tgl < startStr) && !(endStr && tgl > endStr);
         const isLunasInRange = (row, startStr, endStr) => isLunasRow(row) && hasPayDate(row) && inRange(row['Tanggal_Bayar_Saja'], startStr, endStr);
 
@@ -2442,7 +2508,6 @@
                 });
             }
 
-            // Peta: muat Leaflet (sekali) lalu pasang modul. Urutan dengan setFilter di bawah tidak penting.
             ensureLeaflet()
                 .then(() => {
                     ProgresMap.mount('#progresMapMount', { webAppUrl: WEB_APP_URL });
@@ -2594,7 +2659,6 @@
             const gSisaPlg = gTargetPlg - gLunasPlg;
             const pctCapaian = gTargetPlg > 0 ? (gLunasPlg / gTargetPlg) * 100 : 0;
 
-            // Animasi 3 Kartu Utama
             animateCounter('progTargetRp', gTargetRp, true);
             animateCounter('progTargetPlg', gTargetPlg, false, "Pelanggan Ditagih");
             animateCounter('progLunasRp', gLunasRp, true);
@@ -2602,7 +2666,6 @@
             animateCounter('progSisaRp', Math.max(0, gSisaRp), true);
             animateCounter('progSisaPlg', Math.max(0, gSisaPlg), false, "Pelanggan Tertunggak");
 
-            // Animasi Rincian Sisa Tagihan
             animateCounter('detAktif', gAktifPlg, false, 'Plg');
             animateCounter('detBatal', gBatalPlg, false, 'Plg');
             animateCounter('detDeaktif', gDeaktifPlg, false, 'Plg');
@@ -2612,7 +2675,6 @@
 
             document.getElementById('labelCapaianTeks').textContent = selectedRegion === 'ALL' ? 'Nasional' : 'Region ' + selectedRegion;
             
-            // Animasi Progress Bar & Persentase
             document.getElementById('progBarFill').style.width = Math.min(pctCapaian, 100).toFixed(1) + "%";
             const barColor = pctCapaian >= 100 ? 'bg-emerald-500' : 'bg-rose-500';
             document.getElementById('progBarFill').className = `h-5 rounded-full transition-all duration-1000 ease-out ${barColor}`;
@@ -2682,7 +2744,6 @@
 
                 document.getElementById('momSubTitle').textContent = subText;
 
-                // Animasi Angka Kartu Ringkasan MoM (Kanan Atas)
                 animateCounter('momPlgVal', prevTotals.totalPlg, false, 'Plg');
                 animateCounter('momRpVal', prevTotals.totalRp, true);
 
@@ -2754,7 +2815,6 @@
         }
 
         function renderProgresTrendChartFromData(dataRows, selectedPeriod, selectedRegion, startStr, endStr) {
-            if (progresTrenChartInst) { progresTrenChartInst.destroy(); progresTrenChartInst = null; }
             let chartLabels = [], chartValues = [], titleText = "";
             const isDailyView = (selectedPeriod !== 'ALL') || (startStr !== '' || endStr !== '');
 
@@ -2799,7 +2859,7 @@
             if (currentBillingType === 'postpaid') { lineCol = '#8b5cf6'; bgCol = 'rgba(139, 92, 246, 0.1)'; }
             else if (currentBillingType === 'all') { lineCol = '#0ea5e9'; bgCol = 'rgba(14, 165, 233, 0.1)'; }
 
-            progresTrenChartInst = new Chart(document.getElementById('progresTrenChart'), {
+            progresTrenChartInst = upsertChart(progresTrenChartInst, document.getElementById('progresTrenChart'), {
                 type: 'line',
                 data: { labels: chartLabels, datasets: [{ data: chartValues, borderColor: lineCol, backgroundColor: bgCol, borderWidth: 2, fill: true, tension: 0.3 }] },
                 options: {
